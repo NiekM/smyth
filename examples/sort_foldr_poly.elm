@@ -38,8 +38,8 @@ insert n xs =
     Nil _ -> [n]<Nat> 
     Cons p ->
       case compare n (#2.1 p) of
-        LT _ -> Cons<Nat> (n, Cons<Nat> (#2.1 p, #2.2 p))
-        EQ _ -> xs
+        LT _ -> Cons<Nat> (n, Cons<Nat> p)
+        EQ _ -> Cons<Nat> (n, Cons<Nat> p)
         GT _ -> Cons<Nat> (#2.1 p, insert n (#2.2 p))
 
 sort : List Nat -> List Nat
