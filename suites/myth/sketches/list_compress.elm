@@ -23,18 +23,5 @@ compare n1 n2 =
         Z _  -> GT ()
         S m2 -> compare m1 m2
 
-cons_ : Nat -> NatList -> NatList
-cons_ x xs = 
-  case xs of
-    Nil _ -> [x]
-    Cons p -> 
-      case compare x (#2.1 p) of
-        LT _ -> Cons (x, xs)
-        EQ _ -> xs
-        GT _ -> Cons (x, xs)
-
 compress : NatList -> NatList
-compress xs = 
-  case xs of
-    Nil _ -> []
-    Cons p -> ??
+compress xs = ??
