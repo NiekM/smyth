@@ -125,3 +125,5 @@ val check :
 val infer :
   datatype_ctx -> type_ctx -> exp -> (typ * hole_ctx, exp * error) result
 (** Bidirectional type "inference" or "synthesis". *)
+
+val codomains : typ -> (typ list * typ) list

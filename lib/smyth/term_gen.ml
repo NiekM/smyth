@@ -121,6 +121,20 @@ let instantiations :
                      )
                  )
 
+(* TODO: find a better name *)
+(* All ways to apply local bindings *)
+let applications :
+ datatype_ctx -> type_ctx -> typ -> type_binding -> (exp * typ list) Nondet.t =
+  fun sigma gamma goal_type (name, (tau, _)) ->
+    let* (specialized_tau, specialized_exp) =
+      instantiations sigma gamma name tau
+    in
+    Type.codomains specialized_tau
+      |> List.filter (snd >> Type.matches goal_type)
+      |> List.filter (fst >> List.length >> (fun n -> n > 0))
+      |> List.map (fst >> Pair2.pair specialized_exp)
+      |> Nondet.from_list
+
 (*******************************************************************************
  * Term permission helpers
  *)
@@ -292,8 +306,115 @@ let rec gen_e
       | None ->
           Nondet.none
 
-(* A helper for the application part of rel_gen_e *)
+(* TODO: Make sure only applications happen! So no 'applications' with 0 arguments *)
+(* TODO: Or rather: integrate this all in a single E-form function that generates applications including 0 args *)
+(* TODO: This second option automatically disallows recursive bindings without arguments! *)
+
+(* TODO: Make sure that second arguments can also be structurally recursive,
+  this would require more expressive bindspecs,
+  that specify that an argument is argument to multiple functions, each in a different position,
+  so maybe a list of strings where the index in the list determines the argument number *)
+
 and rel_gen_e_app
+  (sigma : datatype_ctx)
+  (term_size : int)
+  (rel_binding : type_binding)
+  ((gamma, goal_type, goal_dec) : gen_goal)
+  : exp Nondet.t =
+    let* _ =
+      Nondet.guard (Option.is_none goal_dec) (* TODO: why is this here? *)
+    in
+    let combined_gamma =
+      Type_ctx.add_type rel_binding gamma
+    in
+    let app_combine
+      (head : exp) (args : exp list) : exp Nondet.t =
+        let special =
+          match Type.bind_spec combined_gamma head with
+            | Rec _ ->
+                true
+
+            | _ ->
+                false
+        in
+        let* _ =
+          Nondet.guard @@
+            Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
+        in
+          Nondet.pure @@ List.fold_left (fun acc arg -> EApp (special, acc, EAExp arg)) head args
+    in
+    let rel_head_nd =
+      let* (head, taus) =
+        applications sigma combined_gamma goal_type rel_binding
+      in
+      let arg_size =
+        List.length taus
+      in
+      let* partition =
+        Nondet.from_list @@
+          Int2.partition_permutations
+            ~n:(term_size - arg_size - 1) (* -1 for each application and -1 for the head *)
+            ~k:arg_size
+      in
+        (* We apply the relevant binding to newly generated arguments.
+          They don't need any special treatment, because we already used the relevant binding. *)
+        Nondet.join @@ Nondet.map (app_combine head) @@
+          Nondet.one_of_each @@
+            List.map2
+              begin fun tau n ->
+                gen
+                  { sigma
+                  ; term_kind = I
+                  ; term_size = n
+                  ; rel_binding = None
+                  ; goal =
+                    ( combined_gamma
+                    , tau
+                    , None
+                    )
+                  }
+              end
+              taus
+              partition
+    in
+    let rel_arg_nd =
+      let* (head, taus) =
+        combined_gamma (* NOTE: this should just be gamma! *)
+          |> Type_ctx.all_type
+          |> List.map (applications sigma combined_gamma goal_type)
+          |> Nondet.union
+      in
+      (* print_endline @@ name ^ " : (" ^ String.concat ", " (List.map Pretty.typ taus) ^ ") -> " ^ Pretty.typ goal_type; *)
+      let arg_size =
+        List.length taus
+      in
+      let* partition =
+        Nondet.from_list @@
+          Int2.partition_permutations
+            ~n:(term_size - arg_size - 1) (* -1 for each application and -1 for the head *)
+            ~k:arg_size
+      in
+      let* part =
+        parts arg_size
+      in
+        Nondet.join @@ Nondet.map (app_combine head) @@
+          Nondet.one_of_each @@
+            List2.map3
+              begin fun tau n tp ->
+                genp_i sigma n tp rel_binding (gamma, tau, None)
+              end
+              taus
+              partition
+              part
+    in
+      Nondet.union
+        [ rel_head_nd
+        ; rel_arg_nd
+        ]
+
+
+(* A helper for the application part of rel_gen_e *)
+and _rel_gen_e_app
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)

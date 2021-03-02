@@ -89,6 +89,11 @@ let rec domain_of_codomain ~codomain tau =
     | _ ->
         None
 
+let rec codomains : typ -> (typ list * typ) list =
+  fun tau -> ([], tau) :: match tau with
+    | TArr (tau1, tau2) -> List.map (fun (ts, t) -> (tau1 :: ts, t)) (codomains tau2)
+    | _ -> []
+
 let sub_bind_spec bind_spec =
   match bind_spec with
     | NoSpec | Rec _ ->
