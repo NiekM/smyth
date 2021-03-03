@@ -541,8 +541,8 @@ and _rel_gen_e_app
 and rel_gen_e
   (sigma : datatype_ctx)
   (term_size : int)
-  ((rel_name, (rel_type, rel_bind_spec)) as rel_binding : type_binding)
-  ((gamma, goal_type, goal_dec) as goal : gen_goal)
+  ((rel_name, (rel_type, _rel_bind_spec)) as rel_binding : type_binding)
+  ((gamma, goal_type, _goal_dec) as goal : gen_goal)
   : exp Nondet.t =
     match term_size with
       | 1 ->
@@ -551,15 +551,10 @@ and rel_gen_e
           in
           if
             Type.matches goal_type specialized_type
-              && Type.matches_dec goal_dec rel_bind_spec
           then
             Nondet.pure
               specialized_exp
-          else if
-            Type.matches_dec
-              goal_dec
-              (Type.sub_bind_spec rel_bind_spec)
-          then
+          else
             (* "Focusing" *)
             begin match rel_type with
               | TTuple component_types ->
@@ -577,8 +572,6 @@ and rel_gen_e
               | _ ->
                   Nondet.none
             end
-          else
-            Nondet.none
 
       (* No unary operators *)
       | 2 ->
