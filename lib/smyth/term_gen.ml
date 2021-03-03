@@ -121,17 +121,32 @@ let instantiations :
                      )
                  )
 
-(* TODO: find a better name *)
-(* All ways to apply local bindings *)
 let applications :
  datatype_ctx -> type_ctx -> typ -> type_binding -> (exp * typ list) Nondet.t =
   fun sigma gamma goal_type (name, (tau, _)) ->
     let* (specialized_tau, specialized_exp) =
-      instantiations sigma gamma name tau
+      Nondet.union
+        [ instantiations sigma gamma name tau
+        (* TODO: should projections also be specialized? they weren't before, right? *)
+        ; match tau with
+          | TTuple component_types ->
+              let n =
+                List.length component_types
+              in
+                component_types
+                  |> List.mapi Pair2.pair
+                  |> List.filter (snd >> Type.matches goal_type)
+                  (* Should be 1-indexed, so use i + 1 *)
+                  |> List.map
+                        (fun (i, t) -> (t , EProj (n, i + 1, EVar (name))))
+                  |> Nondet.from_list
+
+          | _ ->
+              Nondet.none
+        ]
     in
     Type.codomains specialized_tau
       |> List.filter (snd >> Type.matches goal_type)
-      |> List.filter (fst >> List.length >> (fun n -> n > 0))
       |> List.map (fst >> Pair2.pair specialized_exp)
       |> Nondet.from_list
 
@@ -306,39 +321,31 @@ let rec gen_e
       | None ->
           Nondet.none
 
-(* TODO: Make sure only applications happen! So no 'applications' with 0 arguments *)
-(* TODO: Or rather: integrate this all in a single E-form function that generates applications including 0 args *)
-(* TODO: This second option automatically disallows recursive bindings without arguments! *)
-
 (* TODO: Make sure that second arguments can also be structurally recursive,
   this would require more expressive bindspecs,
   that specify that an argument is argument to multiple functions, each in a different position,
   so maybe a list of strings where the index in the list determines the argument number *)
 
-and rel_gen_e_app
+and rel_gen_e
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)
-  ((gamma, goal_type, goal_dec) : gen_goal)
+  ((gamma, goal_type, _goal_dec) : gen_goal)
   : exp Nondet.t =
-    let* _ =
-      Nondet.guard (Option.is_none goal_dec) (* TODO: why is this here? *)
-    in
     let combined_gamma =
       Type_ctx.add_type rel_binding gamma
     in
     let app_combine
       (head : exp) (args : exp list) : exp Nondet.t =
+        let bindspec =
+          Type.bind_spec combined_gamma head
+        in
         let special =
-          match Type.bind_spec combined_gamma head with
-            | Rec _ ->
-                true
-
-            | _ ->
-                false
+          match bindspec with | Rec _ -> true | _ -> false
         in
         let* _ =
-          Nondet.guard @@
+          (* Recursive calls should have arguments and the first one should be structurally decreasing *)
+          Nondet.guard @@ if List.length args = 0 then not special else
             Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
         in
           Nondet.pure @@ List.fold_left (fun acc arg -> EApp (special, acc, EAExp arg)) head args
@@ -411,175 +418,6 @@ and rel_gen_e_app
         [ rel_head_nd
         ; rel_arg_nd
         ]
-
-
-(* A helper for the application part of rel_gen_e *)
-and _rel_gen_e_app
-  (sigma : datatype_ctx)
-  (term_size : int)
-  (rel_binding : type_binding)
-  ((gamma, goal_type, goal_dec) : gen_goal)
-  : exp Nondet.t =
-    let* _ =
-      Nondet.guard (Option.is_none goal_dec)
-    in
-    let combined_gamma =
-      Type_ctx.add_type rel_binding gamma
-    in
-    let app_combine
-     (head_nd : exp Nondet.t) (arg_nd : exp Nondet.t) : exp Nondet.t =
-      let* head =
-        head_nd
-      in
-      let special =
-        match Type.bind_spec combined_gamma head with
-          | Rec _ ->
-              true
-
-          | _ ->
-              false
-      in
-      let* arg =
-        arg_nd
-      in
-      let+ _ =
-        Nondet.guard @@
-          Type.structurally_decreasing combined_gamma ~head ~arg
-      in
-        EApp (special, head, EAExp arg)
-    in
-    let* arg_type =
-      (* TODO: perhaps arg_type should differ for rel and non-rel cases? *)
-      combined_gamma
-        |> Type_ctx.all_type
-        |> List.map
-             ( fun (name, (tau, _)) ->
-                 let* (specialized_tau, _) =
-                   instantiations sigma combined_gamma name tau
-                 in
-                 Nondet.lift_option
-                   ( Type.domain_of_codomain
-                       ~codomain:goal_type
-                       specialized_tau
-                   )
-             )
-        |> Nondet.union
-    in
-    let* partition =
-      Nondet.from_list @@
-        Int2.partition_permutations
-          ~n:(term_size - 1) (* -1 for application *)
-          ~k:2
-    in
-      match partition with
-        (* Will always happen*)
-        | [k_head; k_arg] ->
-            let head_goal =
-              ( gamma
-              , TArr (arg_type, goal_type)
-              , None
-              )
-            in
-            let arg_goal =
-              ( gamma
-              , arg_type
-              , None
-              )
-            in
-            let head_solution_nd =
-              gen
-                { sigma
-                ; term_kind = E
-                ; term_size = k_head
-                ; rel_binding = None
-                ; goal = head_goal
-                }
-            in
-            let rel_head_solution_nd =
-              gen
-                { sigma
-                ; term_kind = E
-                ; term_size = k_head
-                ; rel_binding = Some rel_binding
-                ; goal = head_goal
-                }
-            in
-            let arg_solution_nd =
-              gen
-                { sigma
-                ; term_kind = I
-                ; term_size = k_arg
-                ; rel_binding = None
-                ; goal = arg_goal
-                }
-            in
-            let rel_arg_solution_nd =
-              gen
-                { sigma
-                ; term_kind = I
-                ; term_size = k_arg
-                ; rel_binding = Some rel_binding
-                ; goal = arg_goal
-                }
-            in
-              Nondet.union @@
-                [ app_combine rel_head_solution_nd arg_solution_nd
-                ; app_combine head_solution_nd rel_arg_solution_nd
-                ; app_combine rel_head_solution_nd rel_arg_solution_nd
-                ]
-
-        | _ ->
-            Log.warn
-              ( "integer partition is incorrect size (is "
-              ^ string_of_int (List.length partition)
-              ^ ", should be 2, called with n = "
-              ^ string_of_int (term_size - 1)
-              ^ ")"
-              );
-            Nondet.none
-
-and rel_gen_e
-  (sigma : datatype_ctx)
-  (term_size : int)
-  ((rel_name, (rel_type, _rel_bind_spec)) as rel_binding : type_binding)
-  ((gamma, goal_type, _goal_dec) as goal : gen_goal)
-  : exp Nondet.t =
-    match term_size with
-      | 1 ->
-          let* (specialized_type, specialized_exp) =
-            instantiations sigma gamma rel_name rel_type
-          in
-          if
-            Type.matches goal_type specialized_type
-          then
-            Nondet.pure
-              specialized_exp
-          else
-            (* "Focusing" *)
-            begin match rel_type with
-              | TTuple component_types ->
-                  let n =
-                    List.length component_types
-                  in
-                    component_types
-                      |> List.mapi Pair2.pair
-                      |> List.filter (snd >> Type.matches goal_type)
-                      (* Should be 1-indexed, so use i + 1 *)
-                      |> List.map
-                           (fun (i, _) -> EProj (n, i + 1, EVar rel_name))
-                      |> Nondet.from_list
-
-              | _ ->
-                  Nondet.none
-            end
-
-      (* No unary operators *)
-      | 2 ->
-          Nondet.none
-
-      (* All applications have size > 2 *)
-      | _ ->
-        rel_gen_e_app sigma term_size rel_binding goal
 
 and genp_i
   (sigma : datatype_ctx)
