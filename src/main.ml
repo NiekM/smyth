@@ -706,6 +706,8 @@ let () =
             benchmark_names
               |> List.iter
                    ( fun name ->
+                       let short = List.hd @@ String.split_on_char '.' name
+                       in
                        let output =
                          begin match
                            Result2.sequence @@
@@ -713,16 +715,16 @@ let () =
                                ( fun _ ->
                                    Endpoint.test
                                      ~specification:
-                                       ( Io2.read_path
-                                           [suite_path; "specifications"; name]
+                                       ( Io2.read_path @@
+                                           [suite_path; "specifications"; short ^ ".elm"]
                                        )
                                      ~sketch:
-                                       ( Io2.read_path
+                                       ( Io2.read_path @@
                                            [suite_path; "sketches"; name]
                                        )
                                      ~examples:
-                                       ( Io2.read_path
-                                           [suite_path; "examples"; name]
+                                       ( Io2.read_path @@
+                                           [suite_path; "examples"; short ^ ".elm"]
                                        )
                                )
                          with
