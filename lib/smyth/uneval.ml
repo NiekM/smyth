@@ -215,6 +215,8 @@ module FuelLimited = struct
     in
       rcs
         |> List.map simplify_one
+        (* NOTE: sometimes it is beneficial to just ignore assertions that do not simplify *)
+        |> List.filter (not << Nondet.is_empty)
         |> Nondet.one_of_each
         |> Nondet.map Constraints.merge
         |> Nondet.collapse_option
