@@ -198,7 +198,7 @@ let branch
             let goal =
               ( hole_name
               , ( ( Type_ctx.add_type
-                      (arg_name, (arg_type, arg_bind_spec))
+                      (arg_name, (arg_type, (arg_bind_spec, May)))
                       gamma
                   , goal_type
                   , None

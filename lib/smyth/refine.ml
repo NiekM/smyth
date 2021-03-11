@@ -61,8 +61,8 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
           let new_goal =
             ( hole_name
             , ( ( Type_ctx.concat_type
-                    [ (f_name, (TArr (tau1, tau2), Rec f_name))
-                    ; (x_name, (tau1, Arg f_name))
+                    [ (f_name, (TArr (tau1, tau2), (Rec f_name, May)))
+                    ; (x_name, (tau1, (Arg f_name, May)))
                     ]
                     gamma
                 , tau2

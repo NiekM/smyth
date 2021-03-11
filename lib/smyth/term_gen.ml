@@ -155,12 +155,7 @@ let applications :
  *)
 
 
-type term_permission =
-  | Must
-  | May
-  | Not
-
-let parts (k : int) : term_permission list Nondet.t =
+let parts (k : int) : relevance list Nondet.t =
   let+ i =
     Nondet.from_list (List2.range ~low:1 ~high:k)
   in
@@ -214,6 +209,12 @@ let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
       | Arg name -> "a:" ^ name
       | Dec name -> "d:" ^ name
   in
+  let hash_rel (rel : relevance) : string =
+    match rel with
+      | Must -> "m"
+      | May -> "?"
+      | Not -> "n"
+  in
   let tk_string =
     match term_kind with
       | E -> "E"
@@ -227,8 +228,8 @@ let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
       | None ->
           ""
 
-      | Some (name, (tau, bind_spec)) ->
-          name ^ ";" ^ hash_type tau ^ ";" ^ hash_bind_spec bind_spec
+      | Some (name, (tau, (bind_spec, rel))) ->
+          name ^ ";" ^ hash_type tau ^ ";" ^ hash_bind_spec bind_spec ^ hash_rel rel
   in
   let goal_string =
     let (gamma, goal_type, goal_dec) =
@@ -239,8 +240,8 @@ let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
       gamma
         |> Type_ctx.all_type
         |> List.map
-             ( fun (name, (tau, bind_spec)) ->
-                 name ^ "`" ^ hash_type tau ^ "`" ^ hash_bind_spec bind_spec
+             ( fun (name, (tau, (bind_spec, rel))) ->
+                 name ^ "`" ^ hash_type tau ^ "`" ^ hash_bind_spec bind_spec ^ "`" ^ hash_rel rel
              )
         |> String.concat "&"
     in
@@ -422,12 +423,12 @@ and rel_gen_e
 and genp_i
   (sigma : datatype_ctx)
   (term_size : int)
-  (tp : term_permission)
+  (rel : relevance)
   (rel_binding : type_binding)
   ((gamma, goal_type, goal_dec) : gen_goal)
   : exp Nondet.t =
     let (rel_binding', gamma') =
-      match tp with
+      match rel with
         | Must ->
             (Some rel_binding, gamma)
 
@@ -510,8 +511,8 @@ and rel_gen_i
                 ; rel_binding = rel_binding
                 ; goal =
                     ( Type_ctx.concat_type
-                        [ (arg_name, (tau1, Arg f_name))
-                        ; (f_name, (goal_type, Rec f_name))
+                        [ (arg_name, (tau1, (Arg f_name, May)))
+                        ; (f_name, (goal_type, (Rec f_name, May)))
                         ]
                         gamma
                     , tau2

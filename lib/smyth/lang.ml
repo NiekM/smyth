@@ -111,9 +111,16 @@ type bind_spec =
   | Arg of string (* "Argument of" bindspec *)
   | Dec of string (* "Decreasing on" bindspec *)
 
+(** Relevance of bindings. *)
+type relevance =
+  | Must (* Must be used as a relevant binding *)
+  | May (* May be used as a relevant binding *)
+  (* TODO: do we need Not or can we just remove those bindings? Or pre-pass to remove them? *)
+  | Not (* Must not be used *)
+
 (** Type bindings for type contexts. *)
 type type_binding =
-  string * (typ * bind_spec)
+  string * (typ * (bind_spec * relevance))
 
 (** Polymorphic name "bindings" for type contexts (just the name of the variable
     is needed in the type context). *)

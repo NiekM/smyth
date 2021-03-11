@@ -61,7 +61,7 @@ let rec bind_typ : bind_spec -> pat -> typ -> type_ctx option =
   fun bind_spec p tau ->
     match p with
       | PVar x ->
-          Some (Type_ctx.add_type (x, (tau, bind_spec)) Type_ctx.empty)
+          Some (Type_ctx.add_type (x, (tau, (bind_spec, May))) Type_ctx.empty)
 
       | PTuple ps ->
           begin match tau with
@@ -85,7 +85,7 @@ let bind_rec_name_typ : string option -> typ -> type_ctx =
     match rec_name_opt with
       | Some rec_name ->
           Type_ctx.add_type
-            (rec_name, (tau, Rec rec_name))
+            (rec_name, (tau, (Rec rec_name, May)))
             Type_ctx.empty
 
       | None ->

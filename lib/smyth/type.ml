@@ -110,6 +110,7 @@ let rec bind_spec gamma exp =
     | EVar x ->
         List.assoc_opt x (Type_ctx.all_type gamma)
           |> Option2.map snd
+          |> Option2.map fst
           |> Option2.with_default NoSpec
 
     | EApp (_, head, EAType _) ->
