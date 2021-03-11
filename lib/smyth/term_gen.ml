@@ -448,7 +448,7 @@ and genp_i
 and gen_i
   (sigma : datatype_ctx)
   (term_size : int)
-  ((gamma, goal_type, goal_dec) : gen_goal)
+  ((gamma, goal_type, goal_dec) as goal : gen_goal)
   : exp Nondet.t =
     let* _ =
       Nondet.guard (Option.is_none goal_dec)
@@ -472,100 +472,139 @@ and gen_i
                   }
               ]
 
-        | None ->
-            begin match goal_type with
-              | TArr (tau1, tau2) ->
-                  let f_name =
-                    fresh_ident Type_ctx.empty function_char
-                  in
-                  let arg_name =
-                    fresh_ident Type_ctx.empty variable_char
-                  in
-                  let+ body =
-                    gen
-                      { sigma
-                      ; term_kind = I
-                      ; term_size = term_size - 1 (* -1 for lambda *)
-                      ; rel_binding = None
-                      ; goal =
-                          ( Type_ctx.concat_type
-                              [ (arg_name, (tau1, Arg f_name))
-                              ; (f_name, (goal_type, Rec f_name))
-                              ]
-                              Type_ctx.empty
-                          , tau2
-                          , None
-                          )
-                      }
-                  in
-                    EFix (Some f_name, PatParam (PVar arg_name), body)
+        | None -> rel_gen_i sigma term_size None goal 
 
-              | TTuple taus ->
-                  let tuple_size =
-                    List.length taus
-                  in
-                  let* partition =
-                    Nondet.from_list @@
-                      Int2.partition_permutations
-                        ~n:(term_size - 1) (* -1 for tuple *)
-                        ~k:tuple_size
+and rel_gen_i
+  (sigma : datatype_ctx)
+  (term_size : int)
+  (rel_binding : type_binding option)
+  ((gamma, goal_type, goal_dec) as goal : gen_goal)
+  : exp Nondet.t = 
+    let* _ =
+      Nondet.guard (Option.is_none goal_dec)
+    in
+    (* All E-forms are I-forms *)
+    let e_option =
+      gen
+        { sigma
+        ; term_kind = E
+        ; term_size
+        ; rel_binding = rel_binding
+        ; goal
+        }
+    in
+    let i_option =
+      match goal_type with
+        | TArr (tau1, tau2) ->
+            let f_name =
+              fresh_ident gamma function_char
+            in
+            let arg_name =
+              fresh_ident gamma variable_char
+            in
+            let+ body =
+              gen
+                { sigma
+                ; term_kind = I
+                ; term_size = term_size - 1 (* -1 for lambda *)
+                ; rel_binding = rel_binding
+                ; goal =
+                    ( Type_ctx.concat_type
+                        [ (arg_name, (tau1, Arg f_name))
+                        ; (f_name, (goal_type, Rec f_name))
+                        ]
+                        gamma
+                    , tau2
+                    , None
+                    )
+                }
+            in
+              EFix (Some f_name, PatParam (PVar arg_name), body)
+
+        | TTuple taus ->
+            let tuple_size =
+              List.length taus
+            in
+            let* partition =
+              Nondet.from_list @@
+                Int2.partition_permutations
+                  ~n:(term_size - 1) (* -1 for tuple *)
+                  ~k:tuple_size
+            in
+            (
+              match rel_binding with
+                | None -> 
+                  Nondet.map (fun es -> ETuple es) @@
+                    Nondet.one_of_each @@
+                      List.map2
+                        begin fun tau n ->
+                          gen
+                            { sigma
+                            ; term_kind = I
+                            ; term_size = n
+                            ; rel_binding = None
+                            ; goal = (gamma, tau, None)
+                            }
+                        end
+                        taus
+                        partition
+                | Some rb ->
+                  let* part =
+                    parts tuple_size
                   in
                     Nondet.map (fun es -> ETuple es) @@
                       Nondet.one_of_each @@
-                        List.map2
-                          begin fun tau n ->
-                            gen
-                              { sigma
-                              ; term_kind = I
-                              ; term_size = n
-                              ; rel_binding = None
-                              ; goal = (Type_ctx.empty, tau, None)
-                              }
+                        List2.map3
+                          begin fun tau n tp ->
+                            genp_i sigma n tp rb (gamma, tau, None)
                           end
                           taus
                           partition
+                          part
+            )
+                        
+        | TData (datatype_name, datatype_args) ->
+            let* (ctor_name, arg_type) =
+              List.assoc_opt datatype_name sigma
+                |> Option2.map (snd >> Nondet.from_list)
+                |> Option2.with_default Nondet.none
+            in
+            let+ arg =
+              gen
+                { sigma
+                ; term_kind = I
+                ; term_size = term_size - 1 (* -1 for constructor *)
+                ; rel_binding = rel_binding
+                ; goal = (gamma, arg_type, None)
+                }
+            in
+              ECtor (ctor_name, datatype_args, arg)
 
-              | TData (datatype_name, datatype_args) ->
-                  let* (ctor_name, arg_type) =
-                    List.assoc_opt datatype_name sigma
-                      |> Option2.map (snd >> Nondet.from_list)
-                      |> Option2.with_default Nondet.none
-                  in
-                  let+ arg =
-                    gen
-                      { sigma
-                      ; term_kind = I
-                      ; term_size = term_size - 1 (* -1 for constructor *)
-                      ; rel_binding = None
-                      ; goal = (Type_ctx.empty, arg_type, None)
-                      }
-                  in
-                    ECtor (ctor_name, datatype_args, arg)
+        | TForall (a, bound_type) ->
+            let+ body =
+              gen
+                { sigma
+                ; term_kind = I
+                ; term_size = term_size - 1 (* -1 for lambda *)
+                ; rel_binding = rel_binding
+                ; goal =
+                    ( Type_ctx.add_poly
+                        a
+                        gamma
+                    , bound_type
+                    , None
+                    )
+                }
+            in
+              EFix (None, TypeParam a, body)
 
-              | TForall (a, bound_type) ->
-                  let+ body =
-                    gen
-                      { sigma
-                      ; term_kind = I
-                      ; term_size = term_size - 1 (* -1 for lambda *)
-                      ; rel_binding = None
-                      ; goal =
-                          ( Type_ctx.add_poly
-                              a
-                              Type_ctx.empty
-                          , bound_type
-                          , None
-                          )
-                      }
-                  in
-                    EFix (None, TypeParam a, body)
+        | TVar _ ->
+            (* No introduction form for a type variable *)
+            Nondet.none
+    in
+      Nondet.union [e_option; i_option]
 
-              | TVar _ ->
-                  (* No introduction form for a type variable *)
-                  Nondet.none
-            end
-
-and rel_gen_i
+and _rel_gen_i
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)
@@ -702,7 +741,7 @@ and gen (gen_input : gen_input) : exp Nondet.t =
                       gen_i sigma term_size goal
 
                   | (I, Some rb) ->
-                      rel_gen_i sigma term_size rb goal
+                      rel_gen_i sigma term_size (Some rb) goal
                 end
 
 (*******************************************************************************
