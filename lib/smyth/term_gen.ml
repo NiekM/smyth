@@ -386,7 +386,7 @@ and rel_gen_e
     in
     let rel_arg_nd =
       let* (head, taus) =
-        combined_gamma (* NOTE: this should just be gamma! *)
+        combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
           |> List.map (applications sigma combined_gamma goal_type)
           |> Nondet.union
