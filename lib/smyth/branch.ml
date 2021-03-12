@@ -106,7 +106,7 @@ let branch
       |> Ctor_map.from_assoc
   in
   let* scrutinee =
-    Term_gen.up_to_e sigma max_scrutinee_size
+    Term_gen.up_to E sigma max_scrutinee_size
       ( gamma
       , TData
           ( data_name

@@ -118,6 +118,11 @@ type relevance =
   (* TODO: do we need Not or can we just remove those bindings? Or pre-pass to remove them? *)
   | Not (* Must not be used *)
 
+(* Term kinds. *)
+type term_kind =
+  | E (* Elimination form *)
+  | I (* Introduction form *)
+
 (** Type bindings for type contexts. *)
 type type_binding =
   string * (typ * (bind_spec * relevance))

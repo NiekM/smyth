@@ -167,10 +167,6 @@ let parts (k : int) : relevance list Nondet.t =
 
 (* Types *)
 
-type term_kind =
-  | E
-  | I
-
 type gen_input =
   { sigma : datatype_ctx
   ; term_kind : term_kind
@@ -641,13 +637,13 @@ and gen (gen_input : gen_input) : exp Nondet.t =
 let clear_cache _ =
   Hashtbl.reset gen_cache
 
-let up_to_e sigma max_size goal =
+let up_to term_kind sigma max_size goal =
   List2.range ~low:1 ~high:max_size
     |> List.map
          begin fun term_size ->
            gen
              { sigma
-             ; term_kind = E
+             ; term_kind = term_kind
              ; rel_binding = None
              ; term_size
              ; goal

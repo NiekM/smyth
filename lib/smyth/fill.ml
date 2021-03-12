@@ -72,7 +72,7 @@ let guess_and_check
   in
   let* exp =
     Timer.Multi.accumulate Timer.Multi.Guess @@ fun () ->
-      Term_gen.up_to_e sigma params.max_term_size gen_goal
+      Term_gen.up_to E sigma params.max_term_size gen_goal
   in
   let binding =
     Hole_map.singleton hole_name exp
