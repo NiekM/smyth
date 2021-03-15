@@ -156,14 +156,9 @@ let check :
                 Ok (List2.is_empty assertions)
           end
 
-let test_assertions ~specification ~sketch ~assertions =
+let test_specification ~specification ~sketch ~assertions =
   let open Desugar in
   let open Result2.Syntax in
-  let* full_assertions =
-    specification
-      |> parse_program
-      |> Result.map (fun prog -> prog.assertions)
-  in
   let* sketch_program =
     parse_program sketch
   in
@@ -179,23 +174,31 @@ let test_assertions ~specification ~sketch ~assertions =
       |> List2.hd_opt
       |> Option.to_result ~none:NoSolutions
       |> Result2.and_then
-           (check { sketch_program with assertions = full_assertions })
+           (check { sketch_program with assertions = specification })
   in
   let+ top_recursive_success =
     ranked_hole_fillings
       |> Rank.first_recursive
       |> Option.map
-           (check { sketch_program with assertions = full_assertions })
+           (check { sketch_program with assertions = specification })
       |> Option2.with_default (Ok false)
   in
   { time_taken
   ; specification_assertion_count =
-      List.length full_assertions
+      List.length specification
   ; assertion_count =
       List.length assertions
   ; top_success
   ; top_recursive_success
   }
+
+let test_assertions ~specification ~sketch ~assertions =
+  let open Desugar in
+  specification
+    |> parse_program
+    |> Result.map (fun prog -> prog.assertions)
+    |> Result2.and_then
+      (fun a -> test_specification ~specification:a ~sketch ~assertions)
 
 let test ~specification ~sketch ~examples =
   let open Desugar in
@@ -205,6 +208,66 @@ let test ~specification ~sketch ~examples =
          (fun prog -> prog.assertions)
     |> Result2.and_then
          (fun a -> test_assertions ~specification ~sketch ~assertions:a)
+
+open Lang
+
+let rec val_to_exp =
+  function
+  | VTuple vs -> ETuple (List.map val_to_exp vs)
+  | VCtor (name, v) -> ECtor (name, [] (* TODO: what about type arguments? *), val_to_exp v) 
+
+let res_to_exp = Res.to_value >> Option.map val_to_exp
+
+let rec args : typ -> typ list * typ =
+  function
+  | TArr (tau1, tau2) -> Pair2.map_fst (fun ts -> tau1 :: ts) (args tau2) 
+  | tau -> [] , tau
+
+let gen_assertions_program ~prog ~model ~size : (exp * exp) Nondet.t =
+  let open Desugar in
+  let open Nondet.Syntax in
+  let typ, _ =
+    List.assoc model prog.definitions
+  in
+  let types, _ = 
+    args typ
+  in
+  let main_opt =
+    Some (app (EVar model) (List.mapi (fun i _ -> EAExp (EHole i)) types))
+  in
+  let exp, sigma = 
+    program { prog with main_opt }
+  in
+  begin match Eval.eval Env.empty exp with
+  | Ok (res, []) ->
+    let* inputs =
+      Nondet.one_of_each @@ List.map
+        (fun t -> Term_gen.up_to I sigma size (Type_ctx.empty, t, None)) types
+    in
+    let hf =
+      List.fold_right (fun (i, x) acc -> Hole_map.add i x acc) 
+        (List.mapi Pair2.pair inputs) 
+        Hole_map.empty
+    in
+    begin match Eval.resume hf res with
+    | Ok (out, []) -> 
+      begin match res_to_exp out with
+      | Some exp -> Nondet.pure (app (EVar model) (List.map (fun arg -> EAExp arg) inputs), exp)
+      | None -> Nondet.none
+      end
+    | _ -> Nondet.none
+    end
+  | _ -> Nondet.none 
+  end 
+
+let gen_assertions ~prog ~model ~size : (exp * exp) list response =
+  let open Result2.Syntax in
+  let* prog =
+    parse_program prog
+  in
+  Ok (gen_assertions_program ~prog ~model ~size |> Nondet.to_list)
+
+(* let model_assertions (model : Desugar.program) : (Lang.exp * Lang.exp) list = *)
 
 (* Assertion Info *)
 

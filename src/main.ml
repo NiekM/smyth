@@ -89,6 +89,7 @@ type command =
   | Solve
   | Test
   | SuiteTest
+  | Exercise
   | Fuzz
   | PolyFuzz
   | AssertionExport
@@ -103,6 +104,7 @@ let commands : command list =
     [ Solve
     ; Test
     ; SuiteTest
+    ; Exercise
     ; Fuzz
     ; PolyFuzz
     ; AssertionExport
@@ -115,6 +117,7 @@ let command_name : command -> string =
     | Solve -> "forge"
     | Test -> "test"
     | SuiteTest -> "suite-test"
+    | Exercise -> "exercise"
     | Fuzz -> "fuzz"
     | PolyFuzz -> "poly-fuzz"
     | AssertionExport -> "export-assertions"
@@ -139,6 +142,9 @@ let command_description : command -> string =
 
     | SuiteTest ->
         "Test multiple solutions against specifications"
+
+    | Exercise ->
+        "Test multiple sketches against a model solution"
 
     | Fuzz ->
         "Stress-test a program sketch with examples fuzzed from a built-in "
@@ -180,6 +186,12 @@ let command_arguments : command -> (string * string) list =
     | SuiteTest ->
         [ ( "suite"
           , "The path to the suite to be tested"
+          )
+        ]
+
+    | Exercise ->
+        [ ( "exercise"
+          , "The exercise to be tested"
           )
         ]
 
@@ -759,6 +771,146 @@ let () =
                        in
                        print_endline output
                    )
+
+        | Exercise ->
+            let exercise =
+              Sys.argv.(2)
+            in
+            let prelude =
+              Io2.read_path ["exercises" ; exercise ; "prelude.elm"]
+            in
+            let model =
+              Io2.read_path ["exercises" ; exercise ; "model.elm"]
+            in
+            let all_assertions =
+              Endpoint.gen_assertions ~prog:(prelude ^ model) ~model:exercise ~size:20
+                |> Result2.with_default [] (* TODO: some error probably? *)
+            in
+            let rec drop n xs =
+              match xs with
+              | x :: xs -> if n = 0 then x :: xs else drop (n - 1) xs
+              | [] -> []
+            in
+            let rec nths n xs =
+              match xs with
+              | x :: xs -> x :: nths n (drop n xs)
+              | [] -> []
+            in
+            let assertions =
+              all_assertions |> nths 18
+            in
+            assertions |> List.iter
+              (fun (a, b) -> print_endline @@ "assert " ^ Pretty.exp a ^ " == " ^ Pretty.exp b);
+            print_endline "";
+            let specification =
+              all_assertions |> nths 10
+            in
+            let benchmark_names =
+              Io2.visible_files (Io2.path ["exercises" ; exercise ; "sketches"])
+            in
+            benchmark_names
+              |> List.iter
+                (fun name ->
+                  let sketch =
+                    prelude ^ Io2.read_path ["exercises" ; exercise ; "sketches" ; name]
+                  in
+                  begin match  
+                    Endpoint.test_specification
+                      ~specification
+                      ~sketch
+                      ~assertions
+                  with
+                    | Error e ->
+                        "? error (" ^ name ^ "): " ^ Show.error e
+
+                    | Ok test_results ->
+                        match summarize [test_results] with
+                          | Some test_result ->
+                              let prefix =
+                                let open Endpoint in
+                                if
+                                  ( !test_criterion = TestTop1 &&
+                                    not test_result.top_success
+                                  ) ||
+                                  ( !test_criterion = TestTop1R &&
+                                    not test_result.top_recursive_success
+                                  )
+                                then
+                                  "% ! failure: "
+                                else
+                                  ""
+                              in
+                              prefix
+                              ^ name
+                              ^ ","
+                              ^ Show.test_result test_result
+
+                          | None ->
+                              "? inconsistent test: " ^ name
+                  end
+                    |> print_endline
+                )
+            (* let assertions =
+              Nondet.to_list @@ Endpoint.gen_assertions ~prog:? ~model:? ~size:20  
+            in *)
+            
+            (* print_endline ("% Replications = " ^ string_of_int !suite_test_n);
+            benchmark_names
+              |> List.iter
+                   ( fun name ->
+                       let short = List.hd @@ String.split_on_char '.' name
+                       in
+                       let output =
+                         begin match
+                           Result2.sequence @@
+                             List.init !suite_test_n
+                               ( fun _ ->
+                                   Endpoint.test
+                                     ~specification:
+                                       ( Io2.read_path @@
+                                           [suite_path; "specifications"; short ^ ".elm"]
+                                       )
+                                     ~sketch:
+                                       ( Io2.read_path @@
+                                           [suite_path; "sketches"; name]
+                                       )
+                                     ~examples:
+                                       ( Io2.read_path @@
+                                           [suite_path; "examples"; short ^ ".elm"]
+                                       )
+                               )
+                         with
+                           | Error e ->
+                               "? error (" ^ name ^ "): " ^ Show.error e
+
+                           | Ok test_results ->
+                               match summarize test_results with
+                                 | Some test_result ->
+                                     let prefix =
+                                       let open Endpoint in
+                                       if
+                                         ( !test_criterion = TestTop1 &&
+                                           not test_result.top_success
+                                         ) ||
+                                         ( !test_criterion = TestTop1R &&
+                                           not test_result.top_recursive_success
+                                         )
+                                       then
+                                         "% ! failure: "
+                                       else
+                                         ""
+                                     in
+                                     prefix
+                                      ^ name
+                                      ^ ","
+                                      ^ Show.test_result test_result
+
+                                 | None ->
+                                     "? inconsistent test: " ^ name
+                         end
+                       in
+                       print_endline output
+                   ) *)
 
         | Fuzz
         | PolyFuzz ->

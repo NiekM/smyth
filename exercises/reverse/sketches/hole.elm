@@ -1,0 +1,2 @@
+reverse : NatList -> NatList
+reverse = ?? 

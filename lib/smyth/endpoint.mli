@@ -32,6 +32,8 @@ type solve_result =
   }
 (** The result of a successful "solve" operation. *)
 
+val solve_program : Desugar.program -> solve_result response
+
 val solve : sketch:string -> solve_result response
 (** [solve sketch] tries to return a {!solve_result} that satisfies the
     assertions in [sketch]. *)
@@ -72,6 +74,26 @@ val test_assertions :
 (** A convenience wrapper for {!test} that takes in a list of parsed assertions
     rather than a string. *)
 
+val test_specification :
+  specification:((Lang.exp * Lang.exp) list) ->
+  sketch:string ->
+  assertions:((Lang.exp * Lang.exp) list) ->
+  test_result response
+(** A convenience wrapper for {!test} that takes in lists of parsed assertions
+    rather than strings. *)
+
+val gen_assertions_program :
+  prog:Desugar.program -> 
+  model:string ->
+  size:int ->
+  (Lang.exp * Lang.exp) Nondet.t
+
+val gen_assertions :
+  prog:string -> 
+  model:string ->
+  size:int ->
+  (Lang.exp * Lang.exp) list response
+    
 (** {1:assertion Assertion Info} *)
 
 val assertion_info :
