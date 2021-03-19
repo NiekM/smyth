@@ -267,8 +267,6 @@ let gen_assertions ~prog ~model ~size : (exp * exp) list response =
   in
   Ok (gen_assertions_program ~prog ~model ~size |> Nondet.to_list)
 
-(* let model_assertions (model : Desugar.program) : (Lang.exp * Lang.exp) list = *)
-
 (* Assertion Info *)
 
 let extract_arg_list : Lang.exp -> Lang.exp list =

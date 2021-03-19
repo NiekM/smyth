@@ -850,67 +850,6 @@ let () =
                   end
                     |> print_endline
                 )
-            (* let assertions =
-              Nondet.to_list @@ Endpoint.gen_assertions ~prog:? ~model:? ~size:20  
-            in *)
-            
-            (* print_endline ("% Replications = " ^ string_of_int !suite_test_n);
-            benchmark_names
-              |> List.iter
-                   ( fun name ->
-                       let short = List.hd @@ String.split_on_char '.' name
-                       in
-                       let output =
-                         begin match
-                           Result2.sequence @@
-                             List.init !suite_test_n
-                               ( fun _ ->
-                                   Endpoint.test
-                                     ~specification:
-                                       ( Io2.read_path @@
-                                           [suite_path; "specifications"; short ^ ".elm"]
-                                       )
-                                     ~sketch:
-                                       ( Io2.read_path @@
-                                           [suite_path; "sketches"; name]
-                                       )
-                                     ~examples:
-                                       ( Io2.read_path @@
-                                           [suite_path; "examples"; short ^ ".elm"]
-                                       )
-                               )
-                         with
-                           | Error e ->
-                               "? error (" ^ name ^ "): " ^ Show.error e
-
-                           | Ok test_results ->
-                               match summarize test_results with
-                                 | Some test_result ->
-                                     let prefix =
-                                       let open Endpoint in
-                                       if
-                                         ( !test_criterion = TestTop1 &&
-                                           not test_result.top_success
-                                         ) ||
-                                         ( !test_criterion = TestTop1R &&
-                                           not test_result.top_recursive_success
-                                         )
-                                       then
-                                         "% ! failure: "
-                                       else
-                                         ""
-                                     in
-                                     prefix
-                                      ^ name
-                                      ^ ","
-                                      ^ Show.test_result test_result
-
-                                 | None ->
-                                     "? inconsistent test: " ^ name
-                         end
-                       in
-                       print_endline output
-                   ) *)
 
         | Fuzz
         | PolyFuzz ->
