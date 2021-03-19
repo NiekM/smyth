@@ -207,3 +207,52 @@ let fill_hole : (hole_name * exp) -> exp -> exp =
             ETypeAnnotation (helper e, tau)
     in
     helper
+
+(* TODO: fill_holes should probably subsume fill_hole *)
+(* TODO: probably should first clean/propagate hf before calling fill_holes *)
+let fill_holes (hf : hole_filling) : exp -> exp =
+  let rec helper : exp -> exp =
+    function
+      (* Main case *)
+
+      | EHole hole_name ->
+        hf
+          |> Hole_map.find_opt hole_name
+          |> Option2.with_default (EHole hole_name)
+
+      (* Other cases *)
+
+      | EFix (f, x, body) ->
+          EFix (f, x, helper body)
+
+      | EApp (special, e1, EAExp e2) ->
+          EApp (special, helper e1, EAExp (helper e2))
+
+      | EApp (special, e1, EAType type_arg) ->
+          EApp (special, helper e1, EAType type_arg)
+
+      | EVar x ->
+          EVar x
+
+      | ETuple components ->
+          ETuple (List.map helper components)
+
+      | EProj (n, i, arg) ->
+          EProj (n, i, helper arg)
+
+      | ECtor (ctor_name, type_args, arg) ->
+          ECtor (ctor_name, type_args, helper arg)
+
+      | ECase (scrutinee, branches) ->
+          ECase
+            ( helper scrutinee
+            , List.map (Pair2.map_snd (Pair2.map_snd helper)) branches
+            )
+
+      | EAssert (e1, e2) ->
+          EAssert (helper e1, helper e2)
+
+      | ETypeAnnotation (e, tau) ->
+          ETypeAnnotation (helper e, tau)
+  in
+  helper

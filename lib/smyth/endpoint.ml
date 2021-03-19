@@ -15,6 +15,44 @@ let parse_program : string -> Desugar.program response =
   Bark.run Parse.program
     >> Result.map_error (fun e -> ParseError e)
 
+open Lang
+
+let rec eta_expand (gamma : type_ctx) (tau : typ) : exp =
+  match tau with
+  | TArr (tau1, tau2) ->
+    let f_name =
+      Term_gen.fresh_ident
+        gamma
+        Term_gen.function_char
+    in
+    let x_name =
+      Term_gen.fresh_ident
+        gamma
+        Term_gen.variable_char
+    in
+    let gamma' =
+      Type_ctx.concat_type
+        [ (f_name, (TArr (tau1, tau2), (Rec f_name, May)))
+        ; (x_name, (tau1, (Arg f_name, May)))
+        ]
+        gamma
+    in
+    EFix (Some f_name, PatParam (PVar x_name), eta_expand gamma' tau2)
+  | _ -> EHole (Fresh.gen_hole ())
+
+let all_eta_expand (ctx : hole_ctx) : hole_filling =
+  ctx
+    (* NOTE: apparently, the order of the hole_ctx matters
+      , reversing it ensures the same results as before *)
+    |> List.rev
+    |> List.map (fun (i, (gamma, tau, _, _)) -> (i, eta_expand gamma tau))
+    |> List.fold_left (fun acc (i, x) -> Hole_map.add i x acc) Hole_map.empty
+
+let eta_filling exp sigma =
+  match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
+  | Error e -> Error (TypeError e)
+  | Ok delta -> Ok (all_eta_expand delta, delta)
+
 (* Solve *)
 
 type solve_result =
@@ -29,8 +67,15 @@ let synthesis_pipeline delta sigma assertions =
 
 let solve_program : Desugar.program -> solve_result response =
   fun program ->
+    let open Result2.Syntax in
     let (exp, sigma) =
       Desugar.program program
+    in
+    let* eta_hf, delta_original =
+      eta_filling exp sigma
+    in
+    let exp =
+      Exp.fill_holes eta_hf exp
     in
     begin match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
       | Error e ->
@@ -103,7 +148,10 @@ let solve_program : Desugar.program -> solve_result response =
                   Ok
                     { hole_fillings =
                         synthesis_result
-                          |> Nondet.map (fst >> Clean.clean delta)
+                          |> Nondet.map
+                            (fun (hf, _) -> Constraints.merge_solved [eta_hf ; hf])
+                          |> Nondet.collapse_option
+                          |> Nondet.map (Clean.clean delta_original)
                           |> Nondet.collapse_option
                           |> Nondet.to_list
                     ; time_taken
@@ -208,8 +256,6 @@ let test ~specification ~sketch ~examples =
          (fun prog -> prog.assertions)
     |> Result2.and_then
          (fun a -> test_assertions ~specification ~sketch ~assertions:a)
-
-open Lang
 
 let rec val_to_exp =
   function
