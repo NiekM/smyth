@@ -28,7 +28,8 @@ let rec eta_expand (gamma : type_ctx) (tau : typ) : exp =
     let x_name =
       Term_gen.fresh_ident
         gamma
-        Term_gen.variable_char
+        (* NOTE: it turns out it is more efficient to not use 'x' here *)
+        'z'
     in
     let gamma' =
       Type_ctx.concat_type
