@@ -46,7 +46,11 @@ let all_eta_expand (ctx : hole_ctx) : hole_filling =
     (* NOTE: apparently, the order of the hole_ctx matters
       , reversing it ensures the same results as before *)
     |> List.rev
-    |> List.map (fun (i, (gamma, tau, _, _)) -> (i, eta_expand gamma tau))
+    |> List.filter_map (fun (i, (gamma, tau, _, _)) ->
+      match tau with
+      | TArr _ -> Some (i, eta_expand gamma tau)
+      | _ -> None
+      )
     |> List.fold_left (fun acc (i, x) -> Hole_map.add i x acc) Hole_map.empty
 
 let eta_filling exp sigma =
