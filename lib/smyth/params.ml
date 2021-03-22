@@ -51,6 +51,10 @@ let initial_fuel : int ref =
   ref 100
 (** The initial fuel count for evaluation and resumption. *)
 
+let eta_expand : bool ref =
+  ref true
+(** Whether to do an initial prepass to eta-expand all holes. *)
+
 let log_info : bool ref =
   ref true
 (** Whether or not to enable info-level logging. *)

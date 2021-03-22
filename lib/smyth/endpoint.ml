@@ -41,8 +41,8 @@ let rec eta_expand (gamma : type_ctx) (tau : typ) : exp =
     EFix (Some f_name, PatParam (PVar x_name), eta_expand gamma' tau2)
   | _ -> EHole (Fresh.gen_hole ())
 
-let all_eta_expand (ctx : hole_ctx) : hole_filling =
-  ctx
+let eta_expand_all delta =
+  delta
     (* NOTE: apparently, the order of the hole_ctx matters
       , reversing it ensures the same results as before *)
     |> List.rev
@@ -52,11 +52,6 @@ let all_eta_expand (ctx : hole_ctx) : hole_filling =
       | _ -> None
       )
     |> List.fold_left (fun acc (i, x) -> Hole_map.add i x acc) Hole_map.empty
-
-let eta_filling exp sigma =
-  match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
-  | Error e -> Error (TypeError e)
-  | Ok delta -> Ok (all_eta_expand delta, delta)
 
 (* Solve *)
 
@@ -72,96 +67,104 @@ let synthesis_pipeline delta sigma assertions =
 
 let solve_program : Desugar.program -> solve_result response =
   fun program ->
-    let open Result2.Syntax in
     let (exp, sigma) =
       Desugar.program program
     in
-    let* eta_hf, delta_original =
-      eta_filling exp sigma
-    in
-    let exp =
-      Exp.fill_holes eta_hf exp
-    in
+    (* TODO: refactor this part so that double type checking is hopefully not needed *)
     begin match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
       | Error e ->
-          Error (TypeError e)
+        Error (TypeError e)
 
-      | Ok delta ->
-          begin match Eval.eval Env.empty exp with
-            | Error e ->
-                Error (EvalError e)
+      | Ok delta_original ->
+        let pre_pass_hf =
+          if !Params.eta_expand
+            then eta_expand_all delta_original
+            else Hole_map.empty
+        in
+        let exp =
+          Exp.fill_holes pre_pass_hf exp
+        in
+        begin match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
+          | Error e ->
+              Error (TypeError e)
 
-            | Ok (_, assertions) ->
-                let () =
-                  Term_gen.clear_cache ()
-                in
-                let () =
-                  delta
-                    |> List.map fst
-                    |> List2.maximum
-                    |> Option2.with_default 0
-                    |> Fresh.set_largest_hole
-                in
-                let () =
-                  Uneval.minimal_uneval := true
-                in
-                let
-                 ( synthesis_result
-                 , time_taken
-                 , timed_out
-                 ) =
-                  let
-                   ( minimal_synthesis_result
-                   , minimal_time_taken
-                   , minimal_timed_out
-                   ) =
-                    Timer.itimer_timeout "minimal_synthesis_result"
-                      !Params.max_total_time
-                      (synthesis_pipeline delta sigma) assertions
-                      Nondet.none
-                  in
-                  if
-                    minimal_timed_out
-                      || not (Nondet.is_empty minimal_synthesis_result)
-                  then
-                    ( minimal_synthesis_result
-                    , minimal_time_taken
-                    , minimal_timed_out
-                    )
-                  else
-                    let
-                     ( non_minimal_synthesis_result
-                     , non_minimal_time_taken
-                     , non_minimal_timed_out
-                     ) =
-                      let () =
-                        Uneval.minimal_uneval := false
-                      in
-                      Timer.itimer_timeout "synthesis_result"
-                        (!Params.max_total_time -. minimal_time_taken)
-                        (synthesis_pipeline delta sigma) assertions
-                        Nondet.none
+          | Ok delta ->
+              begin match Eval.eval Env.empty exp with
+                | Error e ->
+                    Error (EvalError e)
+
+                | Ok (_, assertions) ->
+                    let () =
+                      Term_gen.clear_cache ()
                     in
-                      ( non_minimal_synthesis_result
-                      , minimal_time_taken +. non_minimal_time_taken
-                      , non_minimal_timed_out
-                      )
-                in
-                if timed_out then
-                  Error (TimedOut time_taken)
-                else
-                  Ok
-                    { hole_fillings =
-                        synthesis_result
-                          |> Nondet.map
-                            (fun (hf, _) -> Constraints.merge_solved [eta_hf ; hf])
-                          |> Nondet.collapse_option
-                          |> Nondet.map (Clean.clean delta_original)
-                          |> Nondet.collapse_option
-                          |> Nondet.to_list
-                    ; time_taken
-                    }
-          end
+                    let () =
+                      delta
+                        |> List.map fst
+                        |> List2.maximum
+                        |> Option2.with_default 0
+                        |> Fresh.set_largest_hole
+                    in
+                    let () =
+                      Uneval.minimal_uneval := true
+                    in
+                    let
+                    ( synthesis_result
+                    , time_taken
+                    , timed_out
+                    ) =
+                      let
+                      ( minimal_synthesis_result
+                      , minimal_time_taken
+                      , minimal_timed_out
+                      ) =
+                        Timer.itimer_timeout "minimal_synthesis_result"
+                          !Params.max_total_time
+                          (synthesis_pipeline delta sigma) assertions
+                          Nondet.none
+                      in
+                      if
+                        minimal_timed_out
+                          || not (Nondet.is_empty minimal_synthesis_result)
+                      then
+                        ( minimal_synthesis_result
+                        , minimal_time_taken
+                        , minimal_timed_out
+                        )
+                      else
+                        let
+                        ( non_minimal_synthesis_result
+                        , non_minimal_time_taken
+                        , non_minimal_timed_out
+                        ) =
+                          let () =
+                            Uneval.minimal_uneval := false
+                          in
+                          Timer.itimer_timeout "synthesis_result"
+                            (!Params.max_total_time -. minimal_time_taken)
+                            (synthesis_pipeline delta sigma) assertions
+                            Nondet.none
+                        in
+                          ( non_minimal_synthesis_result
+                          , minimal_time_taken +. non_minimal_time_taken
+                          , non_minimal_timed_out
+                          )
+                    in
+                    if timed_out then
+                      Error (TimedOut time_taken)
+                    else
+                      Ok
+                        { hole_fillings =
+                            synthesis_result
+                              |> Nondet.map
+                                (fun (hf, _) -> Constraints.merge_solved [pre_pass_hf ; hf])
+                              |> Nondet.collapse_option
+                              |> Nondet.map (Clean.clean delta_original)
+                              |> Nondet.collapse_option
+                              |> Nondet.to_list
+                        ; time_taken
+                        }
+              end
+        end
     end
 
 
