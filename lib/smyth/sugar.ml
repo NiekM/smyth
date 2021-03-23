@@ -1,15 +1,30 @@
 open Lang
 
-let rec nat : exp -> int option =
+let rec vnat : value -> int option =
   function
-    | ECtor ("S", [], arg) ->
-        Option.map ((+) 1) (nat arg)
+    | VCtor ("S", arg) ->
+      Option.map ((+) 1) (vnat arg)
 
-    | ECtor ("Z", [], ETuple []) ->
-        Some 0
+    | VCtor ("Z", VTuple []) ->
+      Some 0
 
     | _ ->
-        None
+      None
+
+let rec vlist : value -> value list option =
+  function
+    | VCtor ("Cons", VTuple [head; tail]) ->
+      vlist tail
+        |> Option.map (fun t -> head :: t)
+
+    | VCtor ("Nil", VTuple []) ->
+      Some []
+
+    | _ ->
+      None
+
+let nat : exp -> int option =
+  Option2.and_then vnat << Value.from_exp_opt
 
 let listt : exp -> (exp list * typ list) option =
   let rec helper expected_opt =

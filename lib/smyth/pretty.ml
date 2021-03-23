@@ -474,12 +474,48 @@ let rec res' : res printer =
  
  (* Patterns *)
  
- let rec value' : value printer =
-  fun state -> function
-   | VTuple comps -> collection Round state value' comps
-   | VCtor (ctor_name, arg) ->
-       application state (fun _ _ -> ctor_name) () value' arg
+let rec vtry_sugar : state -> value -> string option =
+  fun state v ->
+    match Sugar.vnat v with
+      | Some n ->
+          Some (string_of_int n)
+
+      | None ->
+          begin match Sugar.vlist v with
+            | Some v_list ->
+                Some (collection Square state value' v_list)
+
+            | None ->
+                None
+          end
+
+ and value' : value printer =
+  fun state v ->
+    match vtry_sugar state v with
+      | Some sugar ->
+        sugar
+
+      | None ->
+        match v with
+        | VTuple comps -> collection Round state value' comps
+        | VCtor (ctor_name, arg) ->
+          application state (fun _ _ -> ctor_name) () value' arg
+
+and example' : example printer =
+  fun state ex ->
+    match Option2.and_then (vtry_sugar state) (Value.from_example_opt ex) with
+    | Some sugar -> sugar
+    | None ->
+      match ex with
+      | ExTuple examples -> collection Round state example' examples
+      | ExCtor (ctor_name, arg) ->
+        application state (fun _ _ -> ctor_name) () example' arg
+      | ExInputOutput (value, example) ->
+        value' state value ^ " -> " ^ example' state example
+      | ExTop -> "T"
+
+let value : value -> string =
+  value' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
  
- let value : value -> string =
-   value' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
- 
+let example : example -> string =
+  example' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}

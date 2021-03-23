@@ -16,3 +16,6 @@ val res : res -> string
 
 val value : value -> string
 (** Pretty-prints a value. *)
+
+val example : example -> string
+(** Pretty-prints an example. *)

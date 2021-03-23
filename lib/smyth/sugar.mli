@@ -4,6 +4,13 @@
 
 open Lang
 
+val vnat : value -> int option
+(** [nat] deconstructs the expression [S (... S (Z ()) ...)] into the integer
+    [n], where the [S] constructor is nested [n] times
+    (i.e., [S]{^[n]}[(Z ())]). *)
+
+val vlist : value -> value list option
+
 val nat : exp -> int option
 (** [nat] deconstructs the expression [S (... S (Z ()) ...)] into the integer
     [n], where the [S] constructor is nested [n] times
