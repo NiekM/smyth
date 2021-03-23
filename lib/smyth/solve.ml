@@ -60,6 +60,7 @@ let rec iter_solve params delta sigma (hf, us_all) =
     Nondet.guard @@
       should_continue ()
   in
+  (* TODO: note that removing restrictions might cause synthesis to return things with holes! *)
   match Constraints.delete_min us_all with
     | None ->
         current_solution_count := !current_solution_count + 1;

@@ -55,6 +55,14 @@ let eta_expand : bool ref =
   ref true
 (** Whether to do an initial prepass to eta-expand all holes. *)
 
+let skip_when_stuck : bool ref =
+  ref true
+(** Whether to skip assertions that do not simplify further. *)
+
+(* TODO: add params for:
+  - type-driven synthesis (e.g. informativeness restriction)
+*)
+
 let log_info : bool ref =
   ref true
 (** Whether or not to enable info-level logging. *)
