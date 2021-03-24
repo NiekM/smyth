@@ -394,85 +394,6 @@ let exp : exp -> string =
     ; app_needs_parens = false
     ; fancy_needs_parens = false
     }
-
-(* Results *)
-
-let rec res' : res printer =
-  fun state res ->
-   match res with
-   | RFix (_env, rec_name_opt, PatParam param_pat, body) ->
-       let lambda =
-         "\\"
-         ^ pat'
-             { indent= state.indent
-             ; app_needs_parens= true
-             ; fancy_needs_parens= true }
-             param_pat
-         ^ " -> "
-         ^ exp'
-             { indent= state.indent
-             ; app_needs_parens= false
-             ; fancy_needs_parens= false }
-             body
-       in
-       let inner =
-         match rec_name_opt with
-         | Some rec_name ->
-             "let " ^ rec_name ^ " = " ^ lambda ^ " in " ^ rec_name
-         | None -> lambda
-       in
-       if state.fancy_needs_parens then "(" ^ inner ^ ")" else inner
-   | RFix (_env, rec_name_opt, TypeParam x, body) ->
-       res' state
-         (RFix (_env, rec_name_opt, PatParam (PVar (wrapped_poly x)), body))
-   | RApp (head, RARes arg) -> application state res' head res' arg
-   | RApp (head, RAType arg) ->
-       application state res' head
-         (fun state s -> wrapped_poly (typ' state s))
-         arg
-   | RTuple comps -> collection Round state res' comps
-   | RProj (n, i, arg) ->
-       application state
-         (fun _ _ -> "#" ^ string_of_int n ^ "." ^ string_of_int i)
-         () res' arg
-   | RCtor (ctor_name, arg) ->
-       application state (fun _ _ -> ctor_name) () res' arg
-   | RCase (_env, scrutinee, branches) ->
-       let indent1 = make_indent (state.indent + 1) in
-       let indent2 = make_indent 1 ^ indent1 in
-       let print_branch (ctor_name, (param_pat, body)) =
-         indent1 ^ ctor_name ^ " "
-         ^ pat'
-             { indent= state.indent + 1
-             ; app_needs_parens= true
-             ; fancy_needs_parens= true }
-             param_pat
-         ^ " -> \n" ^ indent2
-         ^ exp'
-             { indent= state.indent + 2
-             ; app_needs_parens= false
-             ; fancy_needs_parens= false }
-             body
-       in
-       let inner =
-         "case "
-         ^ res'
-             { indent= state.indent
-             ; app_needs_parens= false
-             ; fancy_needs_parens= false }
-             scrutinee
-         ^ " of\n"
-         ^ String.concat "\n\n" (List.map print_branch branches)
-       in
-       if state.fancy_needs_parens then "(" ^ inner ^ ")" else inner
-   | RHole (_env, name) -> "?" ^ string_of_int name
-   | RCtorInverse (ctor_name, arg) ->
-       application state (fun _ _ -> ctor_name ^ "-1") () res' arg
- 
- let res : res -> string =
-   res' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
- 
- (* Patterns *)
  
 let rec vtry_sugar : state -> value -> string option =
   fun state v ->
@@ -489,17 +410,80 @@ let rec vtry_sugar : state -> value -> string option =
                 None
           end
 
- and value' : value printer =
-  fun state v ->
-    match vtry_sugar state v with
-      | Some sugar ->
-        sugar
-
-      | None ->
-        match v with
-        | VTuple comps -> collection Round state value' comps
-        | VCtor (ctor_name, arg) ->
-          application state (fun _ _ -> ctor_name) () value' arg
+and res' : res printer =
+  fun state res ->
+    match Option2.and_then (vtry_sugar state) (Value.from_res_opt res) with
+    | Some sugar -> sugar
+    | None ->
+      match res with
+      | RFix (_env, rec_name_opt, PatParam param_pat, body) ->
+          let lambda =
+            "\\"
+            ^ pat'
+                { indent= state.indent
+                ; app_needs_parens= true
+                ; fancy_needs_parens= true }
+                param_pat
+            ^ " -> "
+            ^ exp'
+                { indent= state.indent
+                ; app_needs_parens= false
+                ; fancy_needs_parens= false }
+                body
+          in
+          let inner =
+            match rec_name_opt with
+            | Some rec_name ->
+                "let " ^ rec_name ^ " = " ^ lambda ^ " in " ^ rec_name
+            | None -> lambda
+          in
+          if state.fancy_needs_parens then "(" ^ inner ^ ")" else inner
+      | RFix (_env, rec_name_opt, TypeParam x, body) ->
+          res' state
+            (RFix (_env, rec_name_opt, PatParam (PVar (wrapped_poly x)), body))
+      | RApp (head, RARes arg) -> application state res' head res' arg
+      | RApp (head, RAType arg) ->
+          application state res' head
+            (fun state s -> wrapped_poly (typ' state s))
+            arg
+      | RTuple comps -> collection Round state res' comps
+      | RProj (n, i, arg) ->
+          application state
+            (fun _ _ -> "#" ^ string_of_int n ^ "." ^ string_of_int i)
+            () res' arg
+      | RCtor (ctor_name, arg) ->
+          application state (fun _ _ -> ctor_name) () res' arg
+      | RCase (_env, scrutinee, branches) ->
+          let indent1 = make_indent (state.indent + 1) in
+          let indent2 = make_indent 1 ^ indent1 in
+          let print_branch (ctor_name, (param_pat, body)) =
+            indent1 ^ ctor_name ^ " "
+            ^ pat'
+                { indent= state.indent + 1
+                ; app_needs_parens= true
+                ; fancy_needs_parens= true }
+                param_pat
+            ^ " -> \n" ^ indent2
+            ^ exp'
+                { indent= state.indent + 2
+                ; app_needs_parens= false
+                ; fancy_needs_parens= false }
+                body
+          in
+          let inner =
+            "case "
+            ^ res'
+                { indent= state.indent
+                ; app_needs_parens= false
+                ; fancy_needs_parens= false }
+                scrutinee
+            ^ " of\n"
+            ^ String.concat "\n\n" (List.map print_branch branches)
+          in
+          if state.fancy_needs_parens then "(" ^ inner ^ ")" else inner
+      | RHole (_env, name) -> "?" ^ string_of_int name
+      | RCtorInverse (ctor_name, arg) ->
+          application state (fun _ _ -> ctor_name ^ "-1") () res' arg
 
 and example' : example printer =
   fun state ex ->
@@ -514,8 +498,23 @@ and example' : example printer =
         value' state value ^ " -> " ^ example' state example
       | ExTop -> "T"
 
-let value : value -> string =
-  value' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
+ and value' : value printer =
+  fun state v ->
+    match vtry_sugar state v with
+      | Some sugar ->
+        sugar
+
+      | None ->
+        match v with
+        | VTuple comps -> collection Round state value' comps
+        | VCtor (ctor_name, arg) ->
+          application state (fun _ _ -> ctor_name) () value' arg
  
+let res : res -> string =
+  res' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
+
 let example : example -> string =
   example' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
+
+let value : value -> string =
+  value' {indent= 0; app_needs_parens= false; fancy_needs_parens= false}
