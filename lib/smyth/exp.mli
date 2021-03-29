@@ -21,3 +21,7 @@ val fill_hole : (hole_name * exp) -> exp -> exp
 val fill_holes : hole_filling -> exp -> exp
 (** [fill_hole hf root] replaces holes with the expressions according to hole
     filling [hf] in the expression [root]. *)
+
+val sub_sketches : exp -> exp Nondet.t
+(** [sub_sketches exp] returns all possible sketches that can be unified with
+    [exp], including [exp] itself. *)

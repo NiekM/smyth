@@ -256,3 +256,72 @@ let fill_holes (hf : hole_filling) : exp -> exp =
           ETypeAnnotation (helper e, tau)
   in
   helper
+
+let rec sub_sketches : exp -> exp Nondet.t =
+  fun exp ->
+    match exp with
+    | EHole _
+    | EAssert _ -> Nondet.pure exp
+    | _ ->
+      Nondet.union
+        [ non_hole_sub_sketches exp
+        ; Nondet.pure (EHole (Fresh.gen_hole ()))
+        ]
+
+and non_hole_sub_sketches : exp -> exp Nondet.t =
+  let open Nondet.Syntax in
+  function
+    | EFix (f, x, body) ->
+      let* body =
+        sub_sketches body
+      in
+        Nondet.pure @@ EFix (f, x, body)
+    | EApp (special, head, EAExp arg) ->
+      let* head =
+        non_hole_sub_sketches head
+      in
+      let* arg =
+        sub_sketches arg
+      in
+        Nondet.pure @@ EApp (special, head, EAExp arg)
+    | EApp (special, head, arg) ->
+      let* head =
+        non_hole_sub_sketches head
+      in
+        Nondet.pure @@ EApp (special, head, arg)
+    | EVar name -> Nondet.pure @@ EVar name
+    | ETuple es ->
+      let* es =
+        Nondet.one_of_each @@ List.map sub_sketches es
+      in
+        Nondet.pure @@ ETuple es
+    | EProj (n, i, arg) ->
+    (* TODO: does it make sense to have a projection of a hole? *)
+      let* arg =
+        sub_sketches arg
+      in
+        Nondet.pure @@ EProj (n, i, arg)
+    | ECtor (name, ts, arg) ->
+      let* arg =
+        sub_sketches arg
+      in
+        Nondet.pure @@ ECtor (name, ts, arg)
+    | ECase (scrutinee, branches) ->
+      let* scrutinee =
+        sub_sketches scrutinee
+      in
+      let* branches =
+        branches
+          |> List.map
+            (fun (s, (p, e)) -> Nondet.map (fun x -> (s, (p, x))) (sub_sketches e))
+          |> Nondet.one_of_each
+      in
+        Nondet.pure @@ ECase (scrutinee, branches)
+    | ETypeAnnotation (exp, typ) ->
+      let* exp =
+        sub_sketches exp
+      in
+        Nondet.pure @@ ETypeAnnotation (exp, typ)
+    | EHole _
+    (* TODO: check if this makes sense: no strict subsketches for assertions, right? *)
+    | EAssert _ -> Nondet.none
