@@ -70,7 +70,7 @@ let solve_program : Desugar.program -> solve_result response =
     let (exp, sigma) =
       Desugar.program program
     in
-    (* TODO: refactor this part so that double type checking is hopefully not needed *)
+    (* TODO: refactor this part so that double type checking is hopefully not needed, by updating the hole_ctx manually *)
     begin match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
       | Error e ->
         Error (TypeError e)
@@ -280,8 +280,8 @@ let rec args : typ -> typ list * typ =
 let gen_assertions_program ~prog ~model ~size : (exp * exp) Nondet.t =
   let open Desugar in
   let open Nondet.Syntax in
-  let typ, _ =
-    List.assoc model prog.definitions
+  let* typ, _ =
+    Nondet.lift_option @@ List.assoc_opt model prog.definitions
   in
   let types, _ = 
     args typ
@@ -319,7 +319,7 @@ let gen_assertions ~prog ~model ~size : (exp * exp) list response =
   let* prog =
     parse_program prog
   in
-  Ok (gen_assertions_program ~prog ~model ~size |> Nondet.to_list)
+    Ok (gen_assertions_program ~prog ~model ~size |> Nondet.to_list)
 
 (* Assertion Info *)
 

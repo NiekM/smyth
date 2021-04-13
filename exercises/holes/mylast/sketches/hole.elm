@@ -1,0 +1,2 @@
+mylast : NatList -> Nat
+mylast = ?? 

@@ -1,0 +1,2 @@
+dupli : NatList -> NatList
+dupli = ??

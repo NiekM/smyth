@@ -1,0 +1,2 @@
+compress : NatList -> NatList
+compress = ?? 

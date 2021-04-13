@@ -1,0 +1,2 @@
+pack : NatList -> NatListList
+pack = ??

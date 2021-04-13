@@ -1,0 +1,2 @@
+mylength : NatList -> Nat
+mylength = ?? 

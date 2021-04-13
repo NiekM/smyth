@@ -1,0 +1,2 @@
+encode : NatList -> Encoding
+encode = ??

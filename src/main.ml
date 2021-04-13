@@ -190,7 +190,10 @@ let command_arguments : command -> (string * string) list =
         ]
 
     | Exercise ->
-        [ ( "exercise"
+        [ ( "set"
+          , "The exercise set"
+          )
+        ; ( "exercise"
           , "The exercise to be tested"
           )
         ]
@@ -773,16 +776,19 @@ let () =
                    )
 
         | Exercise ->
-            let exercise =
+            let set =
               Sys.argv.(2)
             in
+            let exercise =
+              Sys.argv.(3)
+            in
             let prelude =
-              Io2.read_path ["exercises" ; exercise ; "prelude.elm"]
+              Io2.read_path ["exercises" ; set ; exercise ; "prelude.elm"]
             in
             let model =
-              Io2.read_path ["exercises" ; exercise ; "model.elm"]
+              Io2.read_path ["exercises" ; set ; exercise ; "model.elm"]
             in
-            let all_assertions =
+            let input_outputs =
               Endpoint.gen_assertions ~prog:(prelude ^ model) ~model:exercise ~size:20
                 |> Result2.with_default [] (* TODO: some error probably? *)
             in
@@ -796,25 +802,46 @@ let () =
               | x :: xs -> x :: nths n (drop n xs)
               | [] -> []
             in
+            let try_examples =
+              match Io2.read_path ["exercises" ; set ; exercise ; "examples.elm"] with
+              | examples -> Result.map (fun p -> p.Desugar.assertions) @@ Bark.run Parse.program examples
+              | exception _ -> Error []
+            in
             let assertions =
-              all_assertions |> nths 18
+              match try_examples with
+              | Ok es -> es
+              | _ -> input_outputs |> nths 23
             in
             assertions |> List.iter
               (fun (a, b) -> print_endline @@ "assert " ^ Pretty.exp a ^ " == " ^ Pretty.exp b);
             print_endline "";
+            let try_spec =
+              match Io2.read_path ["exercises" ; set ; exercise ; "specifications.elm"] with
+              | examples -> Result.map (fun p -> p.Desugar.assertions) @@ Bark.run Parse.program examples
+              | exception _ -> Error []
+            in
             let specification =
-              all_assertions |> nths 10
+              match try_spec with
+              | Ok es -> es
+              | _ -> input_outputs |> nths 10
             in
             let benchmark_names =
-              Io2.visible_files (Io2.path ["exercises" ; exercise ; "sketches"])
+              Io2.visible_files (Io2.path ["exercises" ; set ; exercise ; "sketches"])
             in
             benchmark_names
               |> List.iter
                 (fun name ->
-                  let sketch =
-                    prelude ^ Io2.read_path ["exercises" ; exercise ; "sketches" ; name]
+                  let raw =
+                    Io2.read_path ["exercises" ; set ; exercise ; "sketches" ; name]
                   in
-                  begin match  
+                  print_endline "";
+                  print_endline "----- SKETCH -----";
+                  print_endline "";
+                  print_endline raw;
+                  let sketch =
+                    prelude ^ raw
+                  in
+                  begin match
                     Endpoint.test_specification
                       ~specification
                       ~sketch

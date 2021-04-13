@@ -1,0 +1,2 @@
+myconcat : NatListList -> NatList
+myconcat = ??
