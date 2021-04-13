@@ -834,10 +834,12 @@ let () =
                   let raw =
                     Io2.read_path ["exercises" ; set ; exercise ; "sketches" ; name]
                   in
-                  print_endline "";
-                  print_endline "----- SKETCH -----";
-                  print_endline "";
-                  print_endline raw;
+                  if !Params.debug_mode then (
+                    print_endline "";
+                    print_endline "----- SKETCH -----";
+                    print_endline "";
+                    print_endline raw;
+                  );
                   let sketch =
                     prelude ^ raw
                   in

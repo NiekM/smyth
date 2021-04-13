@@ -94,6 +94,15 @@ let solve_program : Desugar.program -> solve_result response =
                     Error (EvalError e)
 
                 | Ok (_, assertions) ->
+                    if !Params.debug_mode then (
+                      print_endline "";
+                      print_endline "--- ASSERTIONS ---";
+                      print_endline "";
+                      assertions
+                        |> List.iter
+                          (fun (r, v) -> print_endline @@ Pretty.res r ^ " = " ^ Pretty.value v);
+                      print_endline "";
+                    );
                     let () =
                       Term_gen.clear_cache ()
                     in
@@ -199,6 +208,17 @@ let check :
         exp_with_holes
         hole_filling
     in
+    if !Params.debug_mode then (
+      print_endline "";
+      print_endline "---- FILLINGS ----";
+      print_endline "";
+      hole_filling
+        |> List.iter
+          (fun (name, exp) ->
+            "?" ^ string_of_int name ^ ": " ^ Pretty.exp exp
+            |> print_endline
+          );
+    );
     match Type.check sigma Type_ctx.empty exp (Lang.TTuple []) with
       | Error e ->
           Error (TypeError e)
