@@ -325,3 +325,38 @@ and non_hole_sub_sketches : exp -> exp Nondet.t =
     | EHole _
     (* TODO: check if this makes sense: no strict subsketches for assertions, right? *)
     | EAssert _ -> Nondet.none
+
+let rec sub_expressions : exp -> exp Nondet.t =
+  fun exp ->
+    Nondet.union
+      [ Nondet.pure exp
+      ; strict_sub_expressions exp
+      ]
+
+and strict_sub_expressions : exp -> exp Nondet.t =
+  function
+  | EFix (_, _, exp)
+  | EApp (_, exp, EAType _)
+  | EProj (_, _, exp)
+  | ECtor (_, _, exp)
+  | ETypeAnnotation (exp, _) ->
+    sub_expressions exp
+
+  | EApp (_, exp1, EAExp exp2)
+  | EAssert (exp1, exp2) ->
+    [exp1; exp2]
+      |> List.map sub_expressions
+      |> Nondet.union
+
+  | ETuple es ->
+    es
+      |> List.map sub_expressions
+      |> Nondet.one_of_each
+      |> Nondet.map (fun xs -> ETuple xs)
+
+  | ECase (scrutinee, branches) ->
+    scrutinee :: List.map (snd >> snd) branches
+        |> List.map sub_expressions
+        |> Nondet.union
+
+  | _ -> Nondet.none

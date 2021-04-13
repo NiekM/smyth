@@ -25,3 +25,7 @@ val fill_holes : hole_filling -> exp -> exp
 val sub_sketches : exp -> exp Nondet.t
 (** [sub_sketches exp] returns all possible sketches that can be unified with
     [exp], including [exp] itself. *)
+
+val sub_expressions : exp -> exp Nondet.t
+(** [sub_expressions exp] returns all subexpressions that can be found in
+    [exp], including [exp] itself. *)
