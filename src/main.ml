@@ -715,64 +715,74 @@ let () =
               Sys.argv.(2)
             in
             let benchmark_names =
-              Io2.visible_files (Io2.path [suite_path ; "sketches"])
+              Io2.visible_files_rec (Io2.path [suite_path ; "sketches"])
             in
             print_endline ("% Replications = " ^ string_of_int !suite_test_n);
             benchmark_names
               |> List.iter
-                   ( fun name ->
-                       let short = List.hd @@ String.split_on_char '.' name
-                       in
-                       let output =
-                         begin match
-                           Result2.sequence @@
-                             List.init !suite_test_n
-                               ( fun _ ->
-                                   Endpoint.test
-                                     ~specification:
-                                       ( Io2.read_path @@
-                                           [suite_path; "specifications"; short ^ ".elm"]
-                                       )
-                                     ~sketch:
-                                       ( Io2.read_path @@
-                                           [suite_path; "sketches"; name]
-                                       )
-                                     ~examples:
-                                       ( Io2.read_path @@
-                                           [suite_path; "examples"; short ^ ".elm"]
-                                       )
-                               )
-                         with
-                           | Error e ->
-                               "? error (" ^ name ^ "): " ^ Show.error e
+                   ( fun (dir, file) ->
+                      let name =
+                        Io2.path @@ dir @ [file]
+                      in
+                      let simple =
+                        List.hd (String.split_on_char '.' file) ^ ".elm"
+                      in
+                      let output =
+                        begin match
+                          Result2.sequence @@
+                            List.init !suite_test_n
+                              ( fun _ ->
+                                let prelude =
+                                  try Io2.read_path
+                                    @@ [suite_path; "preludes"; simple]
+                                  with _ -> ""
+                                in
+                                Endpoint.test
+                                  ~specification:
+                                    ( Io2.read_path @@
+                                        [suite_path; "specifications"; simple]
+                                    )
+                                  ~sketch:
+                                    ( prelude ^
+                                      Io2.read_path @@
+                                        [suite_path; "sketches"] @ dir @ [file]
+                                    )
+                                  ~examples:
+                                    ( Io2.read_path @@
+                                        [suite_path; "examples"; simple]
+                                    )
+                              )
+                        with
+                          | Error e ->
+                              "? error (" ^ name ^ "): " ^ Show.error e
 
-                           | Ok test_results ->
-                               match summarize test_results with
-                                 | Some test_result ->
-                                     let prefix =
-                                       let open Endpoint in
-                                       if
-                                         ( !test_criterion = TestTop1 &&
-                                           not test_result.top_success
-                                         ) ||
-                                         ( !test_criterion = TestTop1R &&
-                                           not test_result.top_recursive_success
-                                         )
-                                       then
-                                         "% ! failure: "
-                                       else
-                                         ""
-                                     in
-                                     prefix
-                                      ^ name
-                                      ^ ","
-                                      ^ Show.test_result test_result
+                          | Ok test_results ->
+                              match summarize test_results with
+                                | Some test_result ->
+                                    let prefix =
+                                      let open Endpoint in
+                                      if
+                                        ( !test_criterion = TestTop1 &&
+                                          not test_result.top_success
+                                        ) ||
+                                        ( !test_criterion = TestTop1R &&
+                                          not test_result.top_recursive_success
+                                        )
+                                      then
+                                        "% ! failure: "
+                                      else
+                                        ""
+                                    in
+                                    prefix
+                                    ^ name
+                                    ^ ","
+                                    ^ Show.test_result test_result
 
-                                 | None ->
-                                     "? inconsistent test: " ^ name
-                         end
-                       in
-                       print_endline output
+                                | None ->
+                                    "? inconsistent test: " ^ name
+                        end
+                      in
+                      print_endline output
                    )
 
         | Exercise ->

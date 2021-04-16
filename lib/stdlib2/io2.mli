@@ -7,3 +7,5 @@ val path : string list -> string
 val read_path : string list -> string
 
 val visible_files : string -> string list
+
+val visible_files_rec : string -> (string list * string) list

@@ -46,3 +46,33 @@ let visible_files : string -> string list =
                  && String.get file 0 <> '.'
            )
       |> List.sort String.compare
+
+let rec visible_files_rec : string -> (string list * string) list =
+  fun dir ->
+    dir
+      |> Sys.readdir
+      |> Array.to_list
+      |> List.filter
+        ( fun file ->
+          String.length file > 0 
+            && String.get file 0 <> '.'
+        )
+      |> List.map
+        ( fun file ->
+          let file_path =
+            path [dir; file]
+          in
+          if Sys.is_directory file_path
+            then
+              visible_files_rec file_path
+                |> List.map
+                  (fun (xs, f) -> (file :: xs, f))
+            else [([], file)]
+        )
+      |> List.concat
+      |> List.sort
+        ( fun (xs, x) (ys, y) ->
+          String.compare
+            (path @@ xs @ [x])
+            (path @@ ys @ [y])
+        )
