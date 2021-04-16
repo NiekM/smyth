@@ -59,6 +59,10 @@ let skip_when_stuck : bool ref =
   ref true
 (** Whether to skip assertions that do not simplify further. *)
 
+let type_check_assertions : bool ref =
+  ref false
+(** Whether assertions should be type-checked. *)
+
 (* TODO: add params for:
   - type-driven synthesis (e.g. informativeness restriction)
 *)

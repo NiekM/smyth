@@ -648,19 +648,22 @@ and infer' :
             )
 
       | EAssert (left, right) ->
-          let* (left_type, left_delta) =
-            infer' state sigma gamma left
-          in
-          let* (right_type, right_delta) =
-            infer' state sigma gamma right
-          in
-          if equal left_type right_type then
-            Ok (TTuple [], left_delta @ right_delta)
-          else
-            Error
-              ( exp
-              , AssertionTypeMismatch (left_type, right_type)
-              )
+        if !Params.type_check_assertions
+          then
+            let* (left_type, left_delta) =
+              infer' state sigma gamma left
+            in
+            let* (right_type, right_delta) =
+              infer' state sigma gamma right
+            in
+            if equal left_type right_type then
+              Ok (TTuple [], left_delta @ right_delta)
+            else
+              Error
+                ( exp
+                , AssertionTypeMismatch (left_type, right_type)
+                )
+          else Ok (TTuple [], [])
 
       | ETypeAnnotation (exp', tau') ->
           let+ delta =
