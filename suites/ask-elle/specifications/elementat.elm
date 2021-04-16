@@ -1,0 +1,13 @@
+specifyFunction2 (elementat <Nat>)
+  [ ([], 2, Nothing)
+  , ([], 3, Nothing)
+  , ([2], 0, Just 2)
+  , ([1, 2], 5, Nothing)
+  , ([0, 1, 2], 1, Just 1)
+  , ([1, 2, 2], 2, Just 2)
+  , ([1, 3, 2, 0], 1, Just 3)
+  , ([0, 1, 2, 3, 4, 5], 3, Just 3)
+  , ([0, 1, 2, 3, 4, 5], 4, Just 4)
+  , ([0, 1, 2, 3, 4, 5], 5, Just 5)
+  , ([0, 1, 2, 3, 4, 5], 6, Nothing)
+  ]
