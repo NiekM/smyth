@@ -27,6 +27,9 @@ type output_mode =
 let output_mode : output_mode ref =
   ref OutputString
 
+let dir_restrict : string option ref =
+  ref None
+
 (* Information *)
 
 let title = "
@@ -239,9 +242,10 @@ type prog_option =
   | TestAlert
   | Show
   | OutputMode
+  | Restrict
 
 let prog_options : prog_option list =
-  [ Debug; MaxTotalTime; Replications; TestAlert; Show; OutputMode ]
+  [ Debug; MaxTotalTime; Replications; TestAlert; Show; OutputMode; Restrict ]
 
 let prog_option_name : prog_option -> string =
   function
@@ -251,6 +255,7 @@ let prog_option_name : prog_option -> string =
     | TestAlert -> "test-alert"
     | Show -> "show"
     | OutputMode -> "format"
+    | Restrict -> "restrict"
 
 let prog_option_from_name : string -> prog_option option =
   fun name ->
@@ -296,6 +301,12 @@ let prog_option_info : prog_option -> string * string * string list =
         ( "Set the output format for forge results"
         , "string"
         , ["<string|json>"]
+        )
+
+    | Restrict ->
+        ( "Restrict suite tests to specific directories"
+        , ""
+        , ["<string>"]
         )
 
 let prog_option_action : prog_option -> string -> bool =
@@ -350,6 +361,12 @@ let prog_option_action : prog_option -> string -> bool =
             | "string" -> (output_mode := OutputString; true)
             | "json" -> (output_mode := OutputJson; true)
             | _ -> false
+          end
+
+      | Restrict ->
+          begin match value with
+            | "" -> (dir_restrict := None; true)
+            | _ -> (dir_restrict := Some value; true)
           end
 
 (* Help *)
@@ -719,6 +736,12 @@ let () =
             in
             print_endline ("% Replications = " ^ string_of_int !suite_test_n);
             benchmark_names
+              |> (match !dir_restrict with
+              | None -> Fun.id
+              | Some value ->
+                List.filter
+                  (fun (dir, _) -> List.mem value dir)
+              )
               |> List.iter
                    ( fun (dir, file) ->
                       let name =
