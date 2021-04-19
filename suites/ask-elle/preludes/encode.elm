@@ -11,6 +11,13 @@ foldr <a> <b> f acc xs =
     Cons p ->
       f (#2.1 p) (foldr <a> <b> f acc (#2.2 p))
 
+map : forall a. forall b. (a -> b) -> List a -> List b
+map <a> <b> f xs =
+  case xs of
+    Nil _ -> []<b>
+    Cons p ->
+      Cons<b> (f (#2.1 p), map <a> <b> f (#2.2 p))
+
 type Nat
   = Z ()
   | S Nat

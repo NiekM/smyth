@@ -76,6 +76,21 @@ drop <a> n xs =
         Cons p ->
           drop <a> m (#2.2 p)
 
+add : Nat -> Nat -> Nat
+add n1 n2 =
+  case n1 of
+    Z _ -> n2
+    S m1 -> S (add m1 n2)
+
+sub : Nat -> Nat -> Nat
+sub n1 n2 =
+  case n1 of
+    Z _ -> 0
+    S m1 ->
+      case n2 of
+        Z _ -> n1
+        S m2 -> sub m1 m2
+
 type Bool
   = F ()
   | T ()
