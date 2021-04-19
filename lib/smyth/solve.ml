@@ -116,6 +116,38 @@ let expand_stages (xs : 'a list) : (stage * 'a) list =
     (fun s -> List.map (fun x -> (s, x)) xs)
     all_stages
 
+let get_params stage : synthesis_params =
+  let (max_scrutinee_size, max_match_depth, max_term_size) =
+    match stage with
+      | One ->
+          (1, 0, 13)
+
+      | PreTwo ->
+          (1, 1, 8)
+
+      | Two ->
+          (1, 1, 13)
+
+      | PreThree ->
+          (1, 2, 8)
+
+      | Three ->
+          (1, 2, 13)
+
+      | PreFour ->
+          (6, 2, 8)
+
+      | Four ->
+          (6, 2, 13)
+
+      | PreFive ->
+          (6, 3, 8)
+
+      | Five ->
+          (6, 3, 13)
+  in
+    { max_scrutinee_size; max_match_depth; max_term_size }
+
 let solve_any delta sigma constraints_nd =
   let rec helper problems =
     match problems with
@@ -123,42 +155,10 @@ let solve_any delta sigma constraints_nd =
           Nondet.none
 
       | (stage, constraints) :: rest_problems ->
-          let (max_scrutinee_size, max_match_depth, max_term_size) =
-            match stage with
-              | One ->
-                  (1, 0, 13)
-
-              | PreTwo ->
-                  (1, 1, 8)
-
-              | Two ->
-                  (1, 1, 13)
-
-              | PreThree ->
-                  (1, 2, 8)
-
-              | Three ->
-                  (1, 2, 13)
-
-              | PreFour ->
-                  (6, 2, 8)
-
-              | Four ->
-                  (6, 2, 13)
-
-              | PreFive ->
-                  (6, 3, 8)
-
-              | Five ->
-                  (6, 3, 13)
-          in
-          let params =
-            { max_scrutinee_size; max_match_depth; max_term_size }
-          in
           current_solution_count := 0;
           Timer.Multi.reset Timer.Multi.Guess;
           let solution_nd =
-            iter_solve params delta sigma constraints
+            iter_solve (get_params stage) delta sigma constraints
           in
             if Nondet.is_empty solution_nd then
               helper rest_problems
