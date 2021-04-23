@@ -94,6 +94,26 @@ let rec codomains : typ -> (typ list * typ) list =
     | TArr (tau1, tau2) -> List.map (fun (ts, t) -> (tau1 :: ts, t)) (codomains tau2)
     | _ -> []
 
+let rec projections : typ -> ((int * int) list * typ) list =
+  fun typ ->
+    List.concat
+      [ [[], typ]
+      ; match typ with
+        | TTuple args ->
+            let n =
+              List.length args
+            in
+              List.concat
+                @@ List.mapi
+                  ( fun i tau ->
+                    projections tau
+                      |> List.map
+                        (fun (xs, t) -> (n, i + 1) :: xs, t)
+                  )
+                  args
+        | _ -> []
+      ]
+
 let rec free_vars : typ -> string list =
   function
   | TArr (tau1, tau2) -> free_vars tau1 @ free_vars tau2

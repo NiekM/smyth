@@ -130,3 +130,5 @@ val infer :
 val codomains : typ -> (typ list * typ) list
 
 val free_vars : typ -> string list
+
+val projections : typ -> ((int * int) list * typ) list
