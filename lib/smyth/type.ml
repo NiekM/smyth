@@ -94,6 +94,14 @@ let rec codomains : typ -> (typ list * typ) list =
     | TArr (tau1, tau2) -> List.map (fun (ts, t) -> (tau1 :: ts, t)) (codomains tau2)
     | _ -> []
 
+let rec free_vars : typ -> string list =
+  function
+  | TArr (tau1, tau2) -> free_vars tau1 @ free_vars tau2
+  | TTuple taus
+  | TData (_, taus) -> List.concat @@ List.map free_vars taus
+  | TForall (_, tau) -> free_vars tau
+  | TVar a -> [a]
+
 let sub_bind_spec bind_spec =
   match bind_spec with
     | NoSpec | Rec _ ->

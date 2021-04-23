@@ -128,3 +128,5 @@ val infer :
 (** Bidirectional type "inference" or "synthesis". *)
 
 val codomains : typ -> (typ list * typ) list
+
+val free_vars : typ -> string list
