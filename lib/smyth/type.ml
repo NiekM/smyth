@@ -158,50 +158,23 @@ let peel_forall : typ -> string list * typ =
 
 (* Substitution *)
 
-let rec substitute : before:string -> after:typ -> typ -> typ =
-  fun ~before ~after tau ->
-    match tau with
+(* TODO: use Map i.o. assoc list *)
+type subst = (string * typ) list
+
+let rec subst : subst -> typ -> typ =
+  fun th ->
+    function
       | TArr (arg, ret) ->
-          TArr
-            ( substitute ~before ~after arg
-            , substitute ~before ~after ret
-            )
-
+        TArr (subst th arg, subst th ret)
       | TTuple components ->
-          TTuple
-            ( List.map
-                (substitute ~before ~after)
-                components
-            )
-
+        TTuple (List.map (subst th) components)
       | TData (name, args) ->
-          TData
-            ( name
-            , List.map
-                (substitute ~before ~after)
-                args
-            )
-
+        TData (name, List.map (subst th) args)
       | TForall (a, bound_type) ->
-          if String.equal before a then
-            tau
-          else
-            TForall (a, substitute ~before ~after bound_type)
-
+        TForall (a, subst (List.remove_assoc a th) bound_type)
       | TVar x ->
-          if String.equal before x then
-            after
-          else
-            tau
-
-let substitute_many : bindings:((string * typ) list) -> typ -> typ =
-  fun ~bindings tau ->
-    List.fold_left
-      ( fun acc (before, after) ->
-          substitute ~before ~after acc
-      )
-      tau
-      bindings
+        List.assoc_opt x th
+          |> Option2.with_default (TVar x)
 
 (** Type checking *)
 
@@ -409,8 +382,7 @@ let rec check' :
                                    scrutinee_data_args_len
                                then
                                  let substituted_arg_type =
-                                   substitute_many
-                                     ~bindings:
+                                   subst
                                        ( List.combine
                                            type_params
                                            scrutinee_data_args
@@ -548,7 +520,7 @@ and infer' :
           begin match head_type with
             | TForall (a, bound_type) ->
                 Ok
-                  ( substitute ~before:a ~after:type_arg bound_type
+                  ( subst [a, type_arg] bound_type
                   , head_delta
                   )
 
@@ -623,8 +595,8 @@ and infer' :
           if Int.equal args_len params_len then
             let+ arg_delta =
               check' state sigma gamma arg
-                ( substitute_many
-                    ~bindings:(List.combine type_params type_args)
+                ( subst
+                    (List.combine type_params type_args)
                     arg_type
                 )
             in

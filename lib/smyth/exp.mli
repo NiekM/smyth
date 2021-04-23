@@ -29,3 +29,8 @@ val sub_sketches : exp -> exp Nondet.t
 val sub_expressions : exp -> exp Nondet.t
 (** [sub_expressions exp] returns all subexpressions that can be found in
     [exp], including [exp] itself. *)
+
+val subst : Type.subst -> exp -> exp
+(** [subst th exp] performs many type substitutions at once, replacing,
+    for every pair [before, after] in [th], all free occurrences of
+    [before] in [exp] with [after]. *)

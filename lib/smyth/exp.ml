@@ -360,3 +360,42 @@ and strict_sub_expressions : exp -> exp Nondet.t =
         |> Nondet.union
 
   | _ -> Nondet.none
+
+let subst : Type.subst -> exp -> exp =
+  fun th ->
+    let rec go =
+      function
+      | EFix (f, p, e) ->
+        EFix (f, p, go e)
+
+      | EApp (s, e1, EAExp e2) ->
+        EApp (s, go e1, EAExp (go e2))
+
+      | EApp (s, e, EAType t) ->
+        EApp (s, go e, EAType (Type.subst th t))
+
+      | EVar a ->
+        EVar a
+
+      | ETuple components ->
+        ETuple (List.map go components)
+
+      | EProj (n, i, e) ->
+        EProj (n, i, go e)
+
+      | ECtor (s, ts, e) ->
+        ECtor (s, List.map (Type.subst th) ts, go e)
+
+      | ECase (scrutinee, branches) ->
+        ECase (scrutinee, branches |> List.map (fun (s, (p, e)) -> s, (p, go e)))
+
+      | EHole hole_name ->
+        EHole hole_name
+
+      | EAssert (e1, e2) ->
+        EAssert (go e1, go e2)
+
+      | ETypeAnnotation (e, t) ->
+        ETypeAnnotation (go e, Type.subst th t)
+
+    in go

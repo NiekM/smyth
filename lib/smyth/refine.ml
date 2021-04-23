@@ -147,12 +147,11 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
           let+ arg_type =
             List.assoc_opt ctor_name datatype_ctors
               |> Option.map
-                   ( Type.substitute_many
-                       ~bindings:
-                         ( List.combine
-                             datatype_params
-                             datatype_args
-                         )
+                   ( Type.subst
+                      ( List.combine
+                          datatype_params
+                          datatype_args
+                      )
                    )
           in
           let hole_name =

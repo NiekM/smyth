@@ -109,8 +109,8 @@ let instantiations :
             |> Nondet.one_of_each
             |> Nondet.map
                  ( fun args ->
-                     ( Type.substitute_many
-                         ~bindings:(List.combine params args)
+                     ( Type.subst
+                         (List.combine params args)
                          bound_type
                      , Desugar.app
                          (EVar name)

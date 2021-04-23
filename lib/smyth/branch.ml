@@ -179,12 +179,11 @@ let branch
               Ctor_map.find_opt ctor_name ctor_info
             in
             let arg_type =
-              Type.substitute_many
-                ~bindings:
-                  ( List.combine
-                      datatype_params
-                      datatype_args
-                  )
+              Type.subst
+                ( List.combine
+                    datatype_params
+                    datatype_args
+                )
                 raw_arg_type
             in
             let arg_bind_spec =

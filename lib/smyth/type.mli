@@ -77,12 +77,13 @@ val peel_forall : typ -> string list * typ
 
 (** {1:substitution Substitution} *)
 
-val substitute : before:string -> after:typ -> typ -> typ
-(** [substitute ~before ~after tau] substitutes replaces free occurrences of
-    [before] in [tau] with [after]. *)
+(** {1:Unification} *)
+type subst = (string * typ) list
 
-val substitute_many : bindings:((string * typ) list) -> typ -> typ
-(** Performs many substitutions one after another; see {!substitute}. *)
+val subst : subst -> typ -> typ
+(** [subst th tau] performs many substitutions at once, replacing,
+    for every pair [before, after] in [th], all free occurrences of
+    [before] in [tau] with [after]. *)
 
 (** {1:typechecking Type-checking}
     The following functions implement a bidirectional type checker. *)
