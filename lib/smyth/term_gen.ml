@@ -90,69 +90,6 @@ let simple_types : datatype_ctx -> type_ctx -> typ Nondet.t =
       ; datatypes_nd
       ]
 
-let instantiations :
- datatype_ctx -> type_ctx -> string -> typ -> (typ * exp) Nondet.t =
-  fun sigma gamma name tau ->
-    match Type.peel_forall tau with
-      | ([], _) ->
-          Nondet.pure
-            ( tau
-            , EVar name
-            )
-
-      | (params, bound_type) ->
-          let simple_types_nd =
-            simple_types sigma gamma
-          in
-          params
-            |> List.map (fun _ -> simple_types_nd)
-            |> Nondet.one_of_each
-            |> Nondet.map
-                 ( fun args ->
-                     ( Type.subst
-                         (List.combine params args)
-                         bound_type
-                     , Desugar.app
-                         (EVar name)
-                         ( List.map
-                             (fun a -> EAType a)
-                             args
-                         )
-                     )
-                 )
-
-(* TODO: maybe give this a better name?
-   It computes possible left-hand sides for applications (along with the argument types)
-*)
-let applications :
- datatype_ctx -> type_ctx -> typ -> type_binding -> (exp * typ list) Nondet.t =
-  fun sigma gamma goal_type (name, (tau, _)) ->
-    let* (specialized_tau, specialized_exp) =
-      Nondet.union
-        [ instantiations sigma gamma name tau
-        (* TODO: should projections also be specialized? they weren't before, right? *)
-        ; match tau with
-          | TTuple component_types ->
-              let n =
-                List.length component_types
-              in
-                component_types
-                  |> List.mapi Pair2.pair
-                  |> List.filter (snd >> Type.matches goal_type)
-                  (* Should be 1-indexed, so use i + 1 *)
-                  |> List.map
-                        (fun (i, t) -> (t , EProj (n, i + 1, EVar (name))))
-                  |> Nondet.from_list
-
-          | _ ->
-              Nondet.none
-        ]
-    in
-    Type.codomains specialized_tau
-      |> List.filter (snd >> Type.matches goal_type)
-      |> List.map (fst >> Pair2.pair specialized_exp)
-      |> Nondet.from_list
-
 (* TODO: fix this to work for multiple type arguments *)
 let rec resolve_type_apps : exp -> exp =
   fun exp ->
@@ -391,49 +328,7 @@ and rel_gen_e
     in
     let rel_head_nd =
       let* (indexes, head, taus) =
-        (* TODO: fix this so we don't need both [applications] and [application_heads] *)
-        let _a =
-          applications sigma combined_gamma goal_type rel_binding
-            |> Nondet.map
-              (fun (x, y) -> [], x, y)
-        in
-        let b =
-          application_heads (simple_types sigma combined_gamma) goal_type rel_binding
-        in
-        (* (
-        let olds =
-          _a
-            |> Nondet.to_list
-            |> List.map
-              (fun (is, e, ts) ->
-                (if List.mem (is, e, ts) (Nondet.to_list b) then "" else "(exclusive) ")
-                  ^ Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "] "
-                  ^ String.concat " & " (List.map (fun (n, i) -> "#" ^ string_of_int n ^ "." ^ string_of_int i) is)
-              )
-        in
-        let news =
-          b
-            |> Nondet.to_list
-            |> List.map
-              (fun (is, e, ts) ->
-                (if List.mem (is, e, ts) (Nondet.to_list _a) then "" else "(exclusive) ")
-                  ^ Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "] "
-                  ^ String.concat " & " (List.map (fun (n, i) -> "#" ^ string_of_int n ^ "." ^ string_of_int i) is)
-              )
-        in
-        print_endline "\nREL_HEAD";
-        print_endline @@ "GOAL_TYPE = " ^ Pretty.typ goal_type
-                      ^ " , BINDING = " ^ fst rel_binding
-                      ^ " : " ^ Pretty.typ @@ fst @@ snd rel_binding;
-        olds |> List.iter
-          (fun x -> print_endline @@ "OLD: " ^ x);
-        news |> List.iter
-          (fun x -> print_endline @@ "NEW: " ^ x);
-        ); *)
-          Nondet.union
-            [ b
-            (* ; _a *)
-            ]
+        application_heads (simple_types sigma combined_gamma) goal_type rel_binding
       in
       let arg_size =
         List.length taus
@@ -472,46 +367,9 @@ and rel_gen_e
         combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
           |> List.map
-            (fun binding ->
-              let _a =
-                applications sigma combined_gamma goal_type binding
-                  |> Nondet.map
-                    (fun (x, y) -> [], x, y)
-              in
-              let b =
-                application_heads (simple_types sigma combined_gamma) goal_type binding
-              in
-              (* if List.length (Nondet.to_list a) < List.length (Nondet.to_list b) then
-              (
-              let olds =
-                a
-                  |> Nondet.to_list
-                  |> List.map
-                    (fun (e, ts) ->
-                      Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "]")
-              in
-              let news =
-                b
-                  |> Nondet.to_list
-                  |> List.map
-                    (fun (e, ts) ->
-                      Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "]")
-              in
-              print_endline "\nREL_ARG";
-              print_endline @@ "GOAL_TYPE = " ^ Pretty.typ goal_type
-                            ^ " , BINDING = " ^ fst binding
-                            ^ " : " ^ Pretty.typ @@ fst @@ snd binding;
-              olds |> List.iter (fun x -> if not (List.mem x news) then print_endline @@ "OLD: " ^ x);
-              news |> List.iter (fun x -> if not (List.mem x olds) then print_endline @@ "NEW: " ^ x);
-              ); *)
-                Nondet.union
-                  [ b
-                  (* ; _a *)
-                  ]
-            )
+            @@ application_heads (simple_types sigma combined_gamma) goal_type
           |> Nondet.union
       in
-      (* print_endline @@ name ^ " : (" ^ String.concat ", " (List.map Pretty.typ taus) ^ ") -> " ^ Pretty.typ goal_type; *)
       let arg_size =
         List.length taus
       in
