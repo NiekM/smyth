@@ -322,31 +322,24 @@ let goal_match : typ -> type_binding -> ((int * int) list * string list * typ li
     let* indexes, proj =
       projections ret |> Nondet.from_list
     in
+      (* TODO: should fresh_vars contain "*", or should it only be added for unification? *)
       match unify ("*" :: fresh_vars) proj goal_type with
       | Error _ -> Nondet.none
       | Ok th ->
-        let free_args =
-          fresh_vars
-            |> List.filter (fun x -> not (List.mem_assoc x th))
-        in
-        let th' =
-          th @ List.map (fun x -> (x, TVar x)) free_args
-        in
-        let exp =
-        List.fold_right
-          (fun x acc -> EFix (None, TypeParam x, acc))
-          free_args
-          @@ List.fold_left
-            (fun acc x -> EApp (false, acc, EAType (List.assoc x th')))
-            (EVar name)
-              fresh_vars
-        in
         Nondet.pure
           ( indexes
-          , free_args
+          , List.filter (fun x -> not (List.mem_assoc x th)) fresh_vars
           , List.map (subst th) args
           , subst th proj
-          , exp
+          , List.fold_left
+            (fun acc x ->
+              let t =
+                List.assoc_opt x th
+                  |> Option2.with_default (TVar x)
+              in
+                EApp (false, acc, EAType t))
+            (EVar name)
+              fresh_vars
           )
 
 (** Type checking *)

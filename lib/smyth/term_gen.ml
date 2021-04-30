@@ -90,18 +90,7 @@ let simple_types : datatype_ctx -> type_ctx -> typ Nondet.t =
       ; datatypes_nd
       ]
 
-(* TODO: fix this to work for multiple type arguments *)
-let rec resolve_type_apps : exp -> exp =
-  fun exp ->
-    match exp with
-    | EApp (_, head, EAType t) ->
-      begin match resolve_type_apps head with
-      | EFix (_, TypeParam x, e) -> Exp.subst [x, t] e
-      | _ -> exp
-      end
-    | _ -> exp
-
-let application_heads : typ Nondet.t -> typ -> type_binding -> ((int * int) list * exp * typ list) Nondet.t =
+let instantiations : typ Nondet.t -> typ -> type_binding -> ((int * int) list * exp * typ list) Nondet.t =
   fun types goal_type binding ->
     let* indexes, params, args, _, exp =
       Type.goal_match goal_type binding
@@ -115,13 +104,7 @@ let application_heads : typ Nondet.t -> typ -> type_binding -> ((int * int) list
               List.combine params type_args
             in
               ( indexes
-              , Desugar.app
-                exp
-                ( List.map
-                  (fun a -> EAType a)
-                  type_args
-                )
-                  |> resolve_type_apps
+              , Exp.subst th exp
               , List.map (Type.subst th) args
               )
           )
@@ -328,7 +311,7 @@ and rel_gen_e
     in
     let rel_head_nd =
       let* (indexes, head, taus) =
-        application_heads (simple_types sigma combined_gamma) goal_type rel_binding
+        instantiations (simple_types sigma combined_gamma) goal_type rel_binding
       in
       let arg_size =
         List.length taus
@@ -367,7 +350,7 @@ and rel_gen_e
         combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
           |> List.map
-            @@ application_heads (simple_types sigma combined_gamma) goal_type
+            @@ instantiations (simple_types sigma combined_gamma) goal_type
           |> Nondet.union
       in
       let arg_size =
