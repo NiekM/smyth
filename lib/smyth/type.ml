@@ -204,6 +204,151 @@ let rec subst : subst -> typ -> typ =
         List.assoc_opt x th
           |> Option2.with_default (TVar x)
 
+(* Unification *)
+
+type unification_result = (subst, (typ * typ)) result
+
+let occurs_check : string -> typ -> bool =
+  fun a tau -> equal (TVar a) tau || not (List.mem a (free_vars tau))
+
+let ( >>= ) x k = Result2.bind x k
+
+let unify : string list -> typ -> typ -> unification_result =
+  fun free ->
+  let rec combine : subst -> subst -> unification_result =
+    fun s1 s2 ->
+      let open Result2.Syntax in
+      let* combined =
+        match s1 with
+        | [] -> Ok s2
+        | ((x, t1) :: xs) ->
+          let* s3 = combine xs s2 in
+          match List.assoc_opt x s2 with
+          | None -> Ok ((x, t1) :: s3)
+          | Some t2 ->
+            let* s4 = unify t1 t2 in
+            combine s4 s3
+      in
+        Ok (List.map (fun (x, t) -> x, subst combined t) combined)
+
+  and merge : subst list -> unification_result =
+    function
+    | [] -> Ok []
+    | (s :: ss) ->
+      let open Result2.Syntax in
+      let* ss' = merge ss in
+      combine s ss'
+
+  (* TODO: test the correctness of unify *)
+  and unify : typ -> typ -> unification_result =
+    fun tau1 tau2 ->
+      let open Result2.Syntax in
+      match (tau1, tau2) with
+      | TArr (t1, t2), TArr (t3, t4) ->
+        let* th1 = unify t1 t3 in
+        let* th2 = unify t2 t4 in
+        merge [th1; th2]
+
+      | TTuple ts1, TTuple ts2 when List.length ts1 = List.length ts2 ->
+        Result2.sequence @@ List.map2 unify ts1 ts2 >>= merge
+
+      | TData (name1, ts1), TData (name2, ts2) when List.length ts1 = List.length ts2 && name1 = name2 ->
+        Result2.sequence @@ List.map2 unify ts1 ts2 >>= merge
+
+      (* TODO: should we separate types and typeschemes? *)
+      (* TODO: can we unify typeschemes? *)
+      | TForall _, TForall _ -> Error (tau1, tau2)
+
+      | TVar a, TVar b when a = b -> Ok []
+      | TVar a, _ when List.mem a free && occurs_check a tau2 -> Ok [a, tau2]
+      | _, TVar a when List.mem a free && occurs_check a tau1 -> Ok [a, tau1]
+
+      | _ -> Error (tau1, tau2)
+  in
+    unify
+
+let fresh_ident idents first_char =
+  let extract_number (ident : string) : int option =
+    let ident_len =
+      String.length ident
+    in
+      if ident_len > 0 && Char.equal (String.get ident 0) first_char then
+        ident
+          |> StringLabels.sub ~pos:1 ~len:(ident_len - 1)
+          |> int_of_string_opt
+      else
+        None
+  in
+  let fresh_number : int =
+    idents
+      |> List.filter_map extract_number
+      |> List2.maximum
+      |> Option2.map ((+) 1)
+      |> Option2.with_default 1
+  in
+    String.make 1 first_char ^ string_of_int fresh_number
+
+let rec fresh_idents n idents first_char =
+  match n with
+  | 0 -> []
+  | n ->
+    let ident =
+      fresh_ident idents first_char
+    in
+      ident :: fresh_idents (n - 1) (ident :: idents) first_char
+
+(** [goal_match goal_type binding] finds all forall- and argument-peeled instantiations
+    of [binding] matching [goal_type] *)
+let goal_match : typ -> type_binding -> ((int * int) list * string list * typ list * typ * exp) Nondet.t =
+  let open Nondet.Syntax in
+  fun goal_type (name, (tau, _)) ->
+    (* Peel forall *)
+    let params, bound_type =
+      peel_forall tau
+    in
+    (* Generate fresh identifiers *)
+    let fresh_vars =
+      fresh_idents (List.length params) (free_vars tau) 'a'
+    in
+    (* Instantiate type with fresh identifiers *)
+    let fresh_tau =
+      subst (List.combine params @@ List.map (fun x -> TVar x) fresh_vars) bound_type
+    in
+    (* Take the codomains *)
+    let* args, ret =
+      codomains fresh_tau |> Nondet.from_list
+    in
+    (* Take possible projections *)
+    let* indexes, proj =
+      projections ret |> Nondet.from_list
+    in
+      match unify ("*" :: fresh_vars) proj goal_type with
+      | Error _ -> Nondet.none
+      | Ok th ->
+        let free_args =
+          fresh_vars
+            |> List.filter (fun x -> not (List.mem_assoc x th))
+        in
+        let th' =
+          th @ List.map (fun x -> (x, TVar x)) free_args
+        in
+        let exp =
+        List.fold_right
+          (fun x acc -> EFix (None, TypeParam x, acc))
+          free_args
+          @@ List.fold_left
+            (fun acc x -> EApp (false, acc, EAType (List.assoc x th')))
+            (EVar name)
+              fresh_vars
+        in
+        Nondet.pure
+          ( indexes
+          , free_args
+          , List.map (subst th) args
+          , subst th proj
+          , exp
+          )
+
 (** Type checking *)
 
 type error =

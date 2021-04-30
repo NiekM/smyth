@@ -100,7 +100,7 @@ let solve_program : Desugar.program -> solve_result response =
                       print_endline "";
                       assertions
                         |> List.iter
-                          (fun (r, v) -> print_endline @@ Pretty.res r ^ " = " ^ Pretty.value v);
+                          (fun (r, v) -> print_endline @@ Pretty.res r ^ " == " ^ Pretty.value v);
                       print_endline "";
                     );
                     let () =

@@ -121,6 +121,9 @@ let instantiations :
                      )
                  )
 
+(* TODO: maybe give this a better name?
+   It computes possible left-hand sides for applications (along with the argument types)
+*)
 let applications :
  datatype_ctx -> type_ctx -> typ -> type_binding -> (exp * typ list) Nondet.t =
   fun sigma gamma goal_type (name, (tau, _)) ->
@@ -150,6 +153,42 @@ let applications :
       |> List.map (fst >> Pair2.pair specialized_exp)
       |> Nondet.from_list
 
+(* TODO: fix this to work for multiple type arguments *)
+let rec resolve_type_apps : exp -> exp =
+  fun exp ->
+    match exp with
+    | EApp (_, head, EAType t) ->
+      begin match resolve_type_apps head with
+      | EFix (_, TypeParam x, e) -> Exp.subst [x, t] e
+      | _ -> exp
+      end
+    | _ -> exp
+
+let application_heads : typ Nondet.t -> typ -> type_binding -> ((int * int) list * exp * typ list) Nondet.t =
+  fun types goal_type binding ->
+    let* indexes, params, args, _, exp =
+      Type.goal_match goal_type binding
+    in
+      params
+        |> List.map (fun _ -> types)
+        |> Nondet.one_of_each
+        |> Nondet.map
+          ( fun type_args ->
+            let th =
+              List.combine params type_args
+            in
+              ( indexes
+              , Desugar.app
+                exp
+                ( List.map
+                  (fun a -> EAType a)
+                  type_args
+                )
+                  |> resolve_type_apps
+              , List.map (Type.subst th) args
+              )
+          )
+
 (*******************************************************************************
  * Term permission helpers
  *)
@@ -175,6 +214,7 @@ type gen_input =
   ; goal : gen_goal
   }
 
+(* TODO: maybe move hashing to its own file? *)
 (* Hashing *)
 
 let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
@@ -322,6 +362,8 @@ let rec gen_e
   this would require more expressive bindspecs,
   that specify that an argument is argument to multiple functions, each in a different position,
   so maybe a list of strings where the index in the list determines the argument number *)
+(* TODO: maybe even structural recursion on part of an argument, for an input-stack of projections and arguments? *)
+
 
 and rel_gen_e
   (sigma : datatype_ctx)
@@ -348,8 +390,50 @@ and rel_gen_e
           Nondet.pure @@ List.fold_left (fun acc arg -> EApp (special, acc, EAExp arg)) head args
     in
     let rel_head_nd =
-      let* (head, taus) =
-        applications sigma combined_gamma goal_type rel_binding
+      let* (indexes, head, taus) =
+        (* TODO: fix this so we don't need both [applications] and [application_heads] *)
+        let _a =
+          applications sigma combined_gamma goal_type rel_binding
+            |> Nondet.map
+              (fun (x, y) -> [], x, y)
+        in
+        let b =
+          application_heads (simple_types sigma combined_gamma) goal_type rel_binding
+        in
+        (* (
+        let olds =
+          _a
+            |> Nondet.to_list
+            |> List.map
+              (fun (is, e, ts) ->
+                (if List.mem (is, e, ts) (Nondet.to_list b) then "" else "(exclusive) ")
+                  ^ Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "] "
+                  ^ String.concat " & " (List.map (fun (n, i) -> "#" ^ string_of_int n ^ "." ^ string_of_int i) is)
+              )
+        in
+        let news =
+          b
+            |> Nondet.to_list
+            |> List.map
+              (fun (is, e, ts) ->
+                (if List.mem (is, e, ts) (Nondet.to_list _a) then "" else "(exclusive) ")
+                  ^ Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "] "
+                  ^ String.concat " & " (List.map (fun (n, i) -> "#" ^ string_of_int n ^ "." ^ string_of_int i) is)
+              )
+        in
+        print_endline "\nREL_HEAD";
+        print_endline @@ "GOAL_TYPE = " ^ Pretty.typ goal_type
+                      ^ " , BINDING = " ^ fst rel_binding
+                      ^ " : " ^ Pretty.typ @@ fst @@ snd rel_binding;
+        olds |> List.iter
+          (fun x -> print_endline @@ "OLD: " ^ x);
+        news |> List.iter
+          (fun x -> print_endline @@ "NEW: " ^ x);
+        ); *)
+          Nondet.union
+            [ b
+            (* ; _a *)
+            ]
       in
       let arg_size =
         List.length taus
@@ -380,12 +464,51 @@ and rel_gen_e
               end
               taus
               partition
+          |> Nondet.map
+            (fun exp -> List.fold_right (fun (n, i) e -> EProj (n, i, e)) indexes exp)
     in
     let rel_arg_nd =
-      let* (head, taus) =
+      let* (indexes, head, taus) =
         combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
-          |> List.map (applications sigma combined_gamma goal_type)
+          |> List.map
+            (fun binding ->
+              let _a =
+                applications sigma combined_gamma goal_type binding
+                  |> Nondet.map
+                    (fun (x, y) -> [], x, y)
+              in
+              let b =
+                application_heads (simple_types sigma combined_gamma) goal_type binding
+              in
+              (* if List.length (Nondet.to_list a) < List.length (Nondet.to_list b) then
+              (
+              let olds =
+                a
+                  |> Nondet.to_list
+                  |> List.map
+                    (fun (e, ts) ->
+                      Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "]")
+              in
+              let news =
+                b
+                  |> Nondet.to_list
+                  |> List.map
+                    (fun (e, ts) ->
+                      Pretty.exp e ^ "  ::  [" ^ String.concat "; " (List.map Pretty.typ ts) ^ "]")
+              in
+              print_endline "\nREL_ARG";
+              print_endline @@ "GOAL_TYPE = " ^ Pretty.typ goal_type
+                            ^ " , BINDING = " ^ fst binding
+                            ^ " : " ^ Pretty.typ @@ fst @@ snd binding;
+              olds |> List.iter (fun x -> if not (List.mem x news) then print_endline @@ "OLD: " ^ x);
+              news |> List.iter (fun x -> if not (List.mem x olds) then print_endline @@ "NEW: " ^ x);
+              ); *)
+                Nondet.union
+                  [ b
+                  (* ; _a *)
+                  ]
+            )
           |> Nondet.union
       in
       (* print_endline @@ name ^ " : (" ^ String.concat ", " (List.map Pretty.typ taus) ^ ") -> " ^ Pretty.typ goal_type; *)
@@ -410,6 +533,8 @@ and rel_gen_e
               taus
               partition
               part
+          |> Nondet.map
+            (fun exp -> List.fold_right (fun (n, i) e -> EProj (n, i, e)) indexes exp)
     in
       Nondet.union
         [ rel_head_nd
@@ -601,6 +726,7 @@ and rel_gen_i
     in
       Nondet.union [e_option; i_option]
 
+(* TODO: skip term_generation for goal types isomorphic to Unit *)
 and gen (gen_input : gen_input) : exp Nondet.t =
   if gen_input.term_size <= 0 then
     Nondet.none

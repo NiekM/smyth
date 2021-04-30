@@ -174,6 +174,8 @@ module FuelLimited = struct
                           )
 
                     | None ->
+                        (* TODO: figure out why myreverse gets here *)
+                        (* print_endline @@ Pretty.exp exp; *)
                         Error
                           ( "Non-exhaustive pattern match, "
                           ^ "could not find constructor '"
@@ -204,7 +206,10 @@ module FuelLimited = struct
                     )
 
               | None ->
-                  Error "Result consistency failure"
+                  Error ("Result consistency failure"
+                    ^ ": (" ^ Pretty.exp e1 ^ " ?= " ^ Pretty.exp e2 ^ ")"
+                    ^ " ~> (" ^ Pretty.res r1 ^ " /= " ^ Pretty.res r2 ^ ")"
+                  )
             end
 
       | ETypeAnnotation (e, _) ->

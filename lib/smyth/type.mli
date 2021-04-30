@@ -85,6 +85,9 @@ val subst : subst -> typ -> typ
     for every pair [before, after] in [th], all free occurrences of
     [before] in [tau] with [after]. *)
 
+val goal_match : typ -> type_binding -> ((int * int) list * string list * typ list * typ * exp) Nondet.t
+
+
 (** {1:typechecking Type-checking}
     The following functions implement a bidirectional type checker. *)
 

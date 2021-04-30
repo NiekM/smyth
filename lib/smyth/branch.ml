@@ -106,6 +106,7 @@ let branch
       |> Ctor_map.from_assoc
   in
   let* scrutinee =
+    (* TODO: generate fresh vars here and set them as free in Term_gen *)
     Term_gen.up_to E sigma max_scrutinee_size
       ( gamma
       , TData
