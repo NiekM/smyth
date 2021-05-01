@@ -75,45 +75,6 @@ let is_base tau =
     | TVar _ ->
         true
 
-let rec domain_of_codomain ~codomain tau =
-  match tau with
-    | TArr (tau1, tau2) ->
-        if equal codomain tau2 then
-          Some tau1
-        else
-          domain_of_codomain ~codomain tau2
-
-    | TForall (_, bound_type) ->
-        domain_of_codomain ~codomain bound_type
-
-    | _ ->
-        None
-
-let rec codomains : typ -> (typ list * typ) list =
-  fun tau -> ([], tau) :: match tau with
-    | TArr (tau1, tau2) -> List.map (fun (ts, t) -> (tau1 :: ts, t)) (codomains tau2)
-    | _ -> []
-
-let rec projections : typ -> ((int * int) list * typ) list =
-  fun typ ->
-    List.concat
-      [ [[], typ]
-      ; match typ with
-        | TTuple args ->
-            let n =
-              List.length args
-            in
-              List.concat
-                @@ List.mapi
-                  ( fun i tau ->
-                    projections tau
-                      |> List.map
-                        (fun (xs, t) -> (n, i + 1) :: xs, t)
-                  )
-                  args
-        | _ -> []
-      ]
-
 let applications : exp -> typ -> (exp * typ list * typ) list =
   let rec helper hole exp typ =
     (exp, [], typ) ::

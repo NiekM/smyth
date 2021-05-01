@@ -18,23 +18,6 @@ val matches : typ -> typ -> bool
 val is_base : typ -> bool
 (** [is_base tau] returns determines if [tau] is a base type. *)
 
-(* Suppose tau = a -> (b -> (c -> d)). Then:
- *)
-val domain_of_codomain : codomain:typ -> typ -> typ option
-(** [domain_of_codomain ~codomain root] looks for [codomain] on the right-hand
-    side of a type arrow in [root] that is not on the left-hand side of any type
-    arrow and, if found, returns the left-hand side of that type arrow.
-
-    For example, suppose [tau = a -> (b -> (c -> d))]. Then:
-      {[domain_of_codomain ~codomain:d tau = Some c
-      domain_of_codomain ~codomain:(c -> d) tau = Some b
-      domain_of_codomain ~codomain:(b -> (c -> d)) tau = Some a
-      domain_of_codomain ~codomain:(a -> (b -> (c -> d))) tau = None]}
-
-    Also:
-      {[domain_of_codomain ~codomain:a a = None
-      domain_of_codomain ~codomain:a (() -> a) = Some ()]} *)
-
 val bind_spec : type_ctx -> exp -> bind_spec
 (** [bind_spec gamma e] returns the computed binding specification of [e] with
     respect to [gamma]. In particular:
@@ -127,11 +110,7 @@ val infer :
   datatype_ctx -> type_ctx -> exp -> (typ * hole_ctx, exp * error) result
 (** Bidirectional type "inference" or "synthesis". *)
 
-val codomains : typ -> (typ list * typ) list
-
 val free_vars : typ -> string list
-
-val projections : typ -> ((int * int) list * typ) list
 
 val applications : exp -> typ -> (exp * typ list * typ) list
 
