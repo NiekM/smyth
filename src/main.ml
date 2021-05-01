@@ -11,7 +11,7 @@ let show_type : show_type ref =
   ref ShowTop1
 
 let suite_test_n : int ref =
-  ref 10
+  ref 1
 
 type test_criterion =
   | TestTop1

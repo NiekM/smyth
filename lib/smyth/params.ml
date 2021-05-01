@@ -56,7 +56,7 @@ let eta_expand : bool ref =
 (** Whether to do an initial prepass to eta-expand all holes. *)
 
 let skip_when_stuck : bool ref =
-  ref true
+  ref false
 (** Whether to skip assertions that do not simplify further. *)
 
 let type_check_assertions : bool ref =
