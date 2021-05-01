@@ -204,12 +204,9 @@ let check :
       Desugar.program program
     in
     let exp =
-      List.fold_left
-        ( fun acc binding ->
-            Exp.fill_hole binding acc
-        )
+      Exp.fill_holes
+        (List.fold_left (fun m (k, x) -> Hole_map.add k x m) Hole_map.empty hole_filling)
         exp_with_holes
-        hole_filling
     in
     if !Params.debug_mode then (
       print_endline "";
