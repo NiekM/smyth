@@ -92,7 +92,7 @@ let branch
       filter worlds
   in
   let arg_name =
-    Term_gen.fresh_ident gamma Term_gen.match_char
+    Term_gen.fresh_ident (Type_ctx.names gamma) Term_gen.match_char
   in
   let* (data_name, (datatype_params, data_ctors)) =
     Nondet.from_list sigma

@@ -12,9 +12,9 @@
 
 open Lang
 
-val fresh_ident : type_ctx -> char -> string
-(** [fresh_ident gamma c] returns an identifier starting with the character [c]
-    that does not appear in the type context [gamma] *)
+val fresh_ident : string list -> char -> string
+(** [fresh_ident idents c] returns an identifier starting with the character [c]
+    that does not appear in [idents] *)
 
 val function_char : char
 (** The canonical first character for function names. *)

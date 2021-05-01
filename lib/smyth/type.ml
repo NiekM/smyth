@@ -114,6 +114,26 @@ let rec projections : typ -> ((int * int) list * typ) list =
         | _ -> []
       ]
 
+let applications : exp -> typ -> (exp * typ list * typ) list =
+  let rec helper hole exp typ =
+    (exp, [], typ) ::
+      match typ with
+      | TArr (tau1, tau2) ->
+        helper (hole + 1)
+          (EApp (false, exp, EAExp (EHole hole)))
+          tau2
+          |> List.map
+            @@ fun (e, ts, t) -> e, tau1 :: ts, t
+      | TTuple taus ->
+        let n =
+          List.length taus
+        in
+        taus
+          |> List.mapi (fun i -> helper hole (EProj (n, i + 1, exp)))
+          |> List.concat
+      | _ -> []
+  in helper 0
+
 let rec free_vars : typ -> string list =
   function
   | TArr (tau1, tau2) -> free_vars tau1 @ free_vars tau2
@@ -266,81 +286,6 @@ let unify : string list -> typ -> typ -> unification_result =
       | _ -> Error (tau1, tau2)
   in
     unify
-
-let fresh_ident idents first_char =
-  let extract_number (ident : string) : int option =
-    let ident_len =
-      String.length ident
-    in
-      if ident_len > 0 && Char.equal (String.get ident 0) first_char then
-        ident
-          |> StringLabels.sub ~pos:1 ~len:(ident_len - 1)
-          |> int_of_string_opt
-      else
-        None
-  in
-  let fresh_number : int =
-    idents
-      |> List.filter_map extract_number
-      |> List2.maximum
-      |> Option2.map ((+) 1)
-      |> Option2.with_default 1
-  in
-    String.make 1 first_char ^ string_of_int fresh_number
-
-let rec fresh_idents n idents first_char =
-  match n with
-  | 0 -> []
-  | n ->
-    let ident =
-      fresh_ident idents first_char
-    in
-      ident :: fresh_idents (n - 1) (ident :: idents) first_char
-
-(** [goal_match goal_type binding] finds all forall- and argument-peeled instantiations
-    of [binding] matching [goal_type] *)
-let goal_match : typ -> type_binding -> ((int * int) list * string list * typ list * typ * exp) Nondet.t =
-  let open Nondet.Syntax in
-  fun goal_type (name, (tau, _)) ->
-    (* Peel forall *)
-    let params, bound_type =
-      peel_forall tau
-    in
-    (* Generate fresh identifiers *)
-    let fresh_vars =
-      fresh_idents (List.length params) (free_vars tau) 'a'
-    in
-    (* Instantiate type with fresh identifiers *)
-    let fresh_tau =
-      subst (List.combine params @@ List.map (fun x -> TVar x) fresh_vars) bound_type
-    in
-    (* Take the codomains *)
-    let* args, ret =
-      codomains fresh_tau |> Nondet.from_list
-    in
-    (* Take possible projections *)
-    let* indexes, proj =
-      projections ret |> Nondet.from_list
-    in
-      (* TODO: should fresh_vars contain "*", or should it only be added for unification? *)
-      match unify ("*" :: fresh_vars) proj goal_type with
-      | Error _ -> Nondet.none
-      | Ok th ->
-        Nondet.pure
-          ( indexes
-          , List.filter (fun x -> not (List.mem_assoc x th)) fresh_vars
-          , List.map (subst th) args
-          , subst th proj
-          , List.fold_left
-            (fun acc x ->
-              let t =
-                List.assoc_opt x th
-                  |> Option2.with_default (TVar x)
-              in
-                EApp (false, acc, EAType t))
-            (EVar name)
-              fresh_vars
-          )
 
 (** Type checking *)
 

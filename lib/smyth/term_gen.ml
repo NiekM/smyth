@@ -5,7 +5,7 @@ open Nondet.Syntax
  * Identifier generation
  *)
 
-let fresh_ident gamma first_char =
+let fresh_ident idents first_char =
   let extract_number (ident : string) : int option =
     let ident_len =
       String.length ident
@@ -18,14 +18,22 @@ let fresh_ident gamma first_char =
         None
   in
   let fresh_number : int =
-    gamma
-      |> Type_ctx.names
+    idents
       |> List.filter_map extract_number
       |> List2.maximum
       |> Option2.map ((+) 1)
       |> Option2.with_default 1
   in
     String.make 1 first_char ^ string_of_int fresh_number
+
+let rec fresh_idents n idents first_char =
+  match n with
+  | 0 -> []
+  | n ->
+    let ident =
+      fresh_ident idents first_char
+    in
+      ident :: fresh_idents (n - 1) (ident :: idents) first_char
 
 let function_char =
   'f'
@@ -90,10 +98,45 @@ let simple_types : datatype_ctx -> type_ctx -> typ Nondet.t =
       ; datatypes_nd
       ]
 
-let instantiations : typ Nondet.t -> typ -> type_binding -> ((int * int) list * exp * typ list) Nondet.t =
+(** [goal_match goal_type binding] finds all forall- and argument-peeled instantiations
+    of [binding] matching [goal_type] *)
+let goal_match : typ -> type_binding -> (exp * string list * typ list * typ) Nondet.t =
+  fun goal_type (name, (tau, _)) ->
+    (* Peel forall *)
+    let params, bound_type =
+      Type.peel_forall tau
+    in
+    (* Generate fresh identifiers *)
+    let fresh_vars =
+      fresh_idents (List.length params) (Type.free_vars tau) 'a'
+    in
+    (* Instantiate type with fresh identifiers *)
+    let fresh_tau =
+      Type.subst (List.combine params @@ List.map (fun x -> TVar x) fresh_vars) bound_type
+    in
+    let exp =
+      Desugar.app
+        (EVar name)
+        (List.map (fun x -> EAType (TVar x)) fresh_vars)
+    in
+    let* exp, args, ret =
+      Type.applications exp fresh_tau |> Nondet.from_list
+    in
+      (* TODO: should fresh_vars contain "*", or should it only be added for unification? *)
+      match Type.unify ("*" :: fresh_vars) ret goal_type with
+      | Error _ -> Nondet.none
+      | Ok th ->
+        Nondet.pure
+          ( Exp.subst th exp
+          , List.filter (fun x -> not (List.mem_assoc x th)) fresh_vars
+          , List.map (Type.subst th) args
+          , Type.subst th ret
+          )
+
+let instantiations : typ Nondet.t -> typ -> type_binding -> (exp * typ list) Nondet.t =
   fun types goal_type binding ->
-    let* indexes, params, args, _, exp =
-      Type.goal_match goal_type binding
+    let* exp, params, args, _ =
+      goal_match goal_type binding
     in
       params
         |> List.map (fun _ -> types)
@@ -103,8 +146,7 @@ let instantiations : typ Nondet.t -> typ -> type_binding -> ((int * int) list * 
             let th =
               List.combine params type_args
             in
-              ( indexes
-              , Exp.subst th exp
+              ( Exp.subst th exp
               , List.map (Type.subst th) args
               )
           )
@@ -239,6 +281,12 @@ let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
  * Term generation
  *)
 
+let rec get_head : exp -> exp =
+  function
+  | EApp (_, exp, EAExp _)
+  | EProj (_, _, exp) -> get_head exp
+  | exp -> exp
+
 (* --- Important info about the term generation helpers! ---
  *
  * Do NOT call gen_e, rel_gen_e, gen_i, or rel_gen_i from anywhere EXCEPT inside
@@ -295,7 +343,11 @@ and rel_gen_e
       Type_ctx.add_type rel_binding gamma
     in
     let app_combine
-      (head : exp) (args : exp list) : exp Nondet.t =
+      (exp : exp) (args : exp list) : exp Nondet.t =
+        (* TODO: remove get_head *)
+        let head =
+          get_head exp
+        in
         let bindspec =
           Type.bind_spec combined_gamma head
         in
@@ -307,10 +359,10 @@ and rel_gen_e
           Nondet.guard @@ if List.length args = 0 then not special else
             Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
         in
-          Nondet.pure @@ List.fold_left (fun acc arg -> EApp (special, acc, EAExp arg)) head args
+          Nondet.pure @@ Exp.fill_holes (List.fold_left (fun m (k, x) -> Hole_map.add k x m) Hole_map.empty (List.mapi Pair2.pair args)) exp
     in
     let rel_head_nd =
-      let* (indexes, head, taus) =
+      let* (exp, taus) =
         instantiations (simple_types sigma combined_gamma) goal_type rel_binding
       in
       let arg_size =
@@ -324,7 +376,7 @@ and rel_gen_e
       in
         (* We apply the relevant binding to newly generated arguments.
           They don't need any special treatment, because we already used the relevant binding. *)
-        Nondet.join @@ Nondet.map (app_combine head) @@
+        Nondet.join @@ Nondet.map (app_combine exp) @@
           Nondet.one_of_each @@
             List.map2
               begin fun tau n ->
@@ -342,11 +394,9 @@ and rel_gen_e
               end
               taus
               partition
-          |> Nondet.map
-            (fun exp -> List.fold_right (fun (n, i) e -> EProj (n, i, e)) indexes exp)
     in
     let rel_arg_nd =
-      let* (indexes, head, taus) =
+      let* (exp, taus) =
         combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
           |> List.map
@@ -365,7 +415,7 @@ and rel_gen_e
       let* part =
         parts arg_size
       in
-        Nondet.join @@ Nondet.map (app_combine head) @@
+        Nondet.join @@ Nondet.map (app_combine exp) @@
           Nondet.one_of_each @@
             List2.map3
               begin fun tau n tp ->
@@ -374,8 +424,6 @@ and rel_gen_e
               taus
               partition
               part
-          |> Nondet.map
-            (fun exp -> List.fold_right (fun (n, i) e -> EProj (n, i, e)) indexes exp)
     in
       Nondet.union
         [ rel_head_nd
@@ -459,11 +507,14 @@ and rel_gen_i
     let i_option =
       match goal_type with
         | TArr (tau1, tau2) ->
+            let idents =
+              Type_ctx.names gamma
+            in
             let f_name =
-              fresh_ident gamma function_char
+              fresh_ident idents function_char
             in
             let arg_name =
-              fresh_ident gamma variable_char
+              fresh_ident idents variable_char
             in
             let+ body =
               gen

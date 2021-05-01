@@ -19,14 +19,17 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
           let hole_name =
             Fresh.gen_hole ()
           in
+          let idents =
+            Type_ctx.names gamma
+          in
           let f_name =
             Term_gen.fresh_ident
-              gamma
+              idents
               Term_gen.function_char
           in
           let x_name =
             Term_gen.fresh_ident
-              gamma
+              idents
               Term_gen.variable_char
           in
           let+ refined_worlds =

@@ -20,14 +20,17 @@ open Lang
 let rec eta_expand (gamma : type_ctx) (tau : typ) : exp =
   match tau with
   | TArr (tau1, tau2) ->
+    let idents =
+      Type_ctx.names gamma
+    in
     let f_name =
       Term_gen.fresh_ident
-        gamma
+        idents
         Term_gen.function_char
     in
     let x_name =
       Term_gen.fresh_ident
-        gamma
+        idents
         (* NOTE: it turns out it is more efficient to not use 'x' here *)
         'z'
     in
