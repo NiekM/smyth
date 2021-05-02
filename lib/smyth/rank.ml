@@ -5,10 +5,10 @@ let rec exp_size_rank : exp -> int =
     | EFix (_, _, body) ->
         1 + exp_size_rank body
 
-    | EApp (_, e1, EAExp e2) ->
+    | EApp (e1, EAExp e2) ->
         1 + exp_size_rank e1 + exp_size_rank e2
 
-    | EApp (_, e1, EAType _) ->
+    | EApp (e1, EAType _) ->
         1 + exp_size_rank e1
 
     | EVar _ ->
@@ -58,6 +58,11 @@ let sort :
     )
 
 let first_recursive :
- (hole_name * exp) list list -> (hole_name * exp) list option =
-  List.find_opt
-    (List.map snd >> List.exists Exp.has_special_recursion)
+  exp -> (hole_name * exp) list list -> (hole_name * exp) list option =
+  fun exp hfs ->
+    let rec_binds =
+      Exp.get_hole_rec_binds exp
+    in
+    hfs |> List.find_opt
+      @@ List.exists
+        @@ fun (i, e) -> Exp.recursive (List.assoc i rec_binds) e

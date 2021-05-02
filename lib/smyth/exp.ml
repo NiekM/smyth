@@ -30,14 +30,12 @@ let rec syntactically_equal e1 e2 =
             && x_equal
             && syntactically_equal body1 body2
 
-    | (EApp (b1, head1, EAExp arg1), EApp (b2, head2, EAExp arg2)) ->
-        Bool.equal b1 b2
-          && syntactically_equal head1 head2
+    | (EApp (head1, EAExp arg1), EApp (head2, EAExp arg2)) ->
+        syntactically_equal head1 head2
           && syntactically_equal arg1 arg2
 
-    | (EApp (b1, e1, EAType t1), EApp (b2, e2, EAType t2)) ->
-        Bool.equal b1 b2
-          && syntactically_equal e1 e2
+    | (EApp (e1, EAType t1), EApp (e2, EAType t2)) ->
+        syntactically_equal e1 e2
           && Type.equal t1 t2
 
     | (EVar x1, EVar x2) ->
@@ -94,12 +92,12 @@ let rec largest_hole : exp -> hole_name =
 
       (* Other cases *)
 
-      | EApp (_, e1, EAExp e2)
+      | EApp (e1, EAExp e2)
       | EAssert (e1, e2) ->
           max (largest_hole e1) (largest_hole e2)
 
       | EFix (_, _, e)
-      | EApp (_, e, EAType _)
+      | EApp (e, EAType _)
       | EProj (_, _, e)
       | ECtor (_, _, e)
       | ETypeAnnotation (e, _) ->
@@ -123,42 +121,6 @@ let rec largest_hole : exp -> hole_name =
           in
           max (largest_hole scrutinee) branch_max
 
-let rec has_special_recursion : exp -> bool =
-  function
-    | EFix (_, _, body) ->
-        has_special_recursion body
-
-    | EApp (special, e1, EAExp e2) ->
-        special || has_special_recursion e1 || has_special_recursion e2
-
-    | EApp (special, e1, EAType _) ->
-        special || has_special_recursion e1
-
-    | EVar _ ->
-        false
-
-    | ETuple components ->
-        List.exists has_special_recursion components
-
-    | EProj (_, _, arg) ->
-        has_special_recursion arg
-
-    | ECtor (_, _, arg) ->
-        has_special_recursion arg
-
-    | ECase (scrutinee, branches) ->
-        has_special_recursion scrutinee
-          || List.exists (fun (_, (_, e)) -> has_special_recursion e) branches
-
-    | EHole _ ->
-        false
-
-    | EAssert (e1, e2) ->
-        has_special_recursion e1 || has_special_recursion e2
-
-    | ETypeAnnotation (e, _) ->
-        has_special_recursion e
-
 (* TODO: fill_holes should probably subsume fill_hole *)
 (* TODO: probably should first clean/propagate hf before calling fill_holes *)
 let fill_holes (hf : hole_filling) : exp -> exp =
@@ -176,11 +138,11 @@ let fill_holes (hf : hole_filling) : exp -> exp =
       | EFix (f, x, body) ->
           EFix (f, x, helper body)
 
-      | EApp (special, e1, EAExp e2) ->
-          EApp (special, helper e1, EAExp (helper e2))
+      | EApp (e1, EAExp e2) ->
+          EApp (helper e1, EAExp (helper e2))
 
-      | EApp (special, e1, EAType type_arg) ->
-          EApp (special, helper e1, EAType type_arg)
+      | EApp (e1, EAType type_arg) ->
+          EApp (helper e1, EAType type_arg)
 
       | EVar x ->
           EVar x
@@ -227,19 +189,19 @@ and non_hole_sub_sketches : exp -> exp Nondet.t =
         sub_sketches body
       in
         Nondet.pure @@ EFix (f, x, body)
-    | EApp (special, head, EAExp arg) ->
+    | EApp (head, EAExp arg) ->
       let* head =
         non_hole_sub_sketches head
       in
       let* arg =
         sub_sketches arg
       in
-        Nondet.pure @@ EApp (special, head, EAExp arg)
-    | EApp (special, head, arg) ->
+        Nondet.pure @@ EApp (head, EAExp arg)
+    | EApp (head, arg) ->
       let* head =
         non_hole_sub_sketches head
       in
-        Nondet.pure @@ EApp (special, head, arg)
+        Nondet.pure @@ EApp (head, arg)
     | EVar name -> Nondet.pure @@ EVar name
     | ETuple es ->
       let* es =
@@ -287,13 +249,13 @@ let rec sub_expressions : exp -> exp Nondet.t =
 and strict_sub_expressions : exp -> exp Nondet.t =
   function
   | EFix (_, _, exp)
-  | EApp (_, exp, EAType _)
+  | EApp (exp, EAType _)
   | EProj (_, _, exp)
   | ECtor (_, _, exp)
   | ETypeAnnotation (exp, _) ->
     sub_expressions exp
 
-  | EApp (_, exp1, EAExp exp2)
+  | EApp (exp1, EAExp exp2)
   | EAssert (exp1, exp2) ->
     [exp1; exp2]
       |> List.map sub_expressions
@@ -319,11 +281,11 @@ let subst : Type.subst -> exp -> exp =
       | EFix (f, p, e) ->
         EFix (f, p, go e)
 
-      | EApp (s, e1, EAExp e2) ->
-        EApp (s, go e1, EAExp (go e2))
+      | EApp (e1, EAExp e2) ->
+        EApp (go e1, EAExp (go e2))
 
-      | EApp (s, e, EAType t) ->
-        EApp (s, go e, EAType (Type.subst th t))
+      | EApp (e, EAType t) ->
+        EApp (go e, EAType (Type.subst th t))
 
       | EVar a ->
         EVar a
@@ -350,3 +312,58 @@ let subst : Type.subst -> exp -> exp =
         ETypeAnnotation (go e, Type.subst th t)
 
     in go
+
+let get_hole_rec_binds : exp -> (hole_name * string list) list =
+  let rec go xs =
+    function
+    | EFix (Some f, _, exp) ->
+      go (f :: xs) exp
+
+    | EFix (None, _, exp)
+    | EApp (exp, EAType _)
+    | EProj (_, _, exp)
+    | ECtor (_, _, exp)
+    | ETypeAnnotation (exp, _) ->
+      go xs exp
+
+    | EApp (exp1, EAExp exp2)
+    | EAssert (exp1, exp2) ->
+        go xs exp1 @ go xs exp2
+
+    | ETuple es ->
+      List.concat @@ List.map (go xs) es
+
+    | ECase (scrutinee, branches) ->
+      go xs scrutinee
+        @ List.concat @@ List.map (snd >> snd >> go xs) branches
+
+    | EHole x -> [x, xs]
+    | _ -> []
+  in go []
+
+let rec recursive : string list -> exp -> bool =
+  fun xs ->
+    function
+    | EFix (Some f, _, exp) ->
+      recursive (f :: xs) exp
+
+    | EFix (None, _, exp)
+    | EApp (exp, EAType _)
+    | EProj (_, _, exp)
+    | ECtor (_, _, exp)
+    | ETypeAnnotation (exp, _) ->
+      recursive xs exp
+
+    | EApp (exp1, EAExp exp2)
+    | EAssert (exp1, exp2) ->
+      recursive xs exp1 || recursive xs exp2
+
+    | ETuple es ->
+      List.exists (recursive xs) es
+
+    | ECase (scrutinee, branches) ->
+      recursive xs scrutinee
+        || List.exists (snd >> snd >> recursive xs) branches
+
+    | EVar x -> List.mem x xs
+    | _ -> false

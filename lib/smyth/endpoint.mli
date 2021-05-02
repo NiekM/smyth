@@ -22,6 +22,8 @@ type 'a response =
   ('a, error) result
 (** The response type that clients will receive. *)
 
+val parse_program : string -> Desugar.program response
+
 (** {1:solve Solve} *)
 
 type solve_result =

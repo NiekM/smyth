@@ -254,7 +254,7 @@ let test_specification ~specification ~sketch ~assertions =
   in
   let+ top_recursive_success =
     ranked_hole_fillings
-      |> Rank.first_recursive
+      |> Rank.first_recursive (Desugar.program sketch_program |> fst)
       |> Option.map
            (check { sketch_program with assertions = specification })
       |> Option2.with_default (Ok false)
@@ -346,7 +346,7 @@ let gen_assertions ~prog ~model ~size : (exp * exp) list response =
 let extract_arg_list : Lang.exp -> Lang.exp list =
   let rec helper acc =
     function
-      | Lang.EApp (_, head, Lang.EAExp arg) ->
+      | Lang.EApp (head, Lang.EAExp arg) ->
           helper (arg :: acc) head
 
       | _ ->

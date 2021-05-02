@@ -271,10 +271,10 @@ and exp' : exp printer =
                       )
                   )
 
-            | EApp (_, head, EAExp arg) ->
+            | EApp (head, EAExp arg) ->
                 application state exp' head exp' arg
 
-            | EApp (_, head, EAType arg) ->
+            | EApp (head, EAType arg) ->
                 application
                   state
                   exp'

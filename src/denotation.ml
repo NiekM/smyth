@@ -99,7 +99,7 @@ let rec poly_to_mono : exp -> exp =
   function
     (* Main cases *)
 
-    | EApp (_, e1, EAType _) ->
+    | EApp (e1, EAType _) ->
         poly_to_mono e1
 
     | ECtor (ctor_name, [TData ("List", _)], arg) ->
@@ -113,8 +113,8 @@ let rec poly_to_mono : exp -> exp =
     | EFix (f, x, body) ->
         EFix (f, x, poly_to_mono body)
 
-    | EApp (special, e1, EAExp e2) ->
-        EApp (special, poly_to_mono e1, EAExp (poly_to_mono e2))
+    | EApp (e1, EAExp e2) ->
+        EApp (poly_to_mono e1, EAExp (poly_to_mono e2))
 
     | EVar x ->
         EVar x

@@ -283,7 +283,7 @@ let record (gen_input : gen_input) (solution : exp Nondet.t) : exp Nondet.t =
 
 let rec get_head : exp -> exp =
   function
-  | EApp (_, exp, EAExp _)
+  | EApp (exp, EAExp _)
   | EProj (_, _, exp) -> get_head exp
   | exp -> exp
 
@@ -348,18 +348,21 @@ and rel_gen_e
         let head =
           get_head exp
         in
-        let bindspec =
-          Type.bind_spec combined_gamma head
-        in
-        let special =
-          match bindspec with | Rec _ -> true | _ -> false
-        in
         let* _ =
           (* Recursive calls should have arguments and the first one should be structurally decreasing *)
-          Nondet.guard @@ if List.length args = 0 then not special else
-            Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
+          Nondet.guard
+            @@ if List.length args = 0
+              then
+                match Type.bind_spec combined_gamma head with | Rec _ -> false | _ -> true
+              else
+                Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
         in
-          Nondet.pure @@ Exp.fill_holes (List.fold_left (fun m (k, x) -> Hole_map.add k x m) Hole_map.empty (List.mapi Pair2.pair args)) exp
+          Nondet.pure
+            @@ Exp.fill_holes
+              (List.fold_left (fun m (k, x) -> Hole_map.add k x m)
+              Hole_map.empty
+              (List.mapi Pair2.pair args))
+              exp
     in
     let rel_head_nd =
       let* (exp, taus) =

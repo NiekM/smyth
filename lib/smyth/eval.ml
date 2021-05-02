@@ -59,7 +59,7 @@ module FuelLimited = struct
             , ks
             )
 
-      | EApp (_, e1, EAExp e2) ->
+      | EApp (e1, EAExp e2) ->
           let* (r1, ks1) =
             eval fuel env e1
           in
@@ -93,7 +93,7 @@ module FuelLimited = struct
                     )
             end
 
-      | EApp (_, head, EAType type_arg) ->
+      | EApp (head, EAType type_arg) ->
           let* (r_head, ks1) =
             eval fuel env head
           in

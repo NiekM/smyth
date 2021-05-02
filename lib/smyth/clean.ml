@@ -22,11 +22,11 @@ let propagate (hf : hole_filling) : hole_filling =
       | EFix (f, x, body) ->
           EFix (f, x, propagate_exp body)
 
-      | EApp (special, e1, EAExp e2) ->
-          EApp (special, propagate_exp e1, EAExp (propagate_exp e2))
+      | EApp (e1, EAExp e2) ->
+          EApp (propagate_exp e1, EAExp (propagate_exp e2))
 
-      | EApp (special, e1, EAType type_arg) ->
-          EApp (special, propagate_exp e1, EAType type_arg)
+      | EApp (e1, EAType type_arg) ->
+          EApp (propagate_exp e1, EAType type_arg)
 
       | EVar x ->
           EVar x

@@ -13,5 +13,5 @@ val sort :
 (** Sorts a list of synthesis solutions by rank. *)
 
 val first_recursive :
-  (hole_name * exp) list list -> (hole_name * exp) list option
+  exp -> (hole_name * exp) list list -> (hole_name * exp) list option
 (** Returns the best-ranked {i recursive} synthesis solution from a list. *)

@@ -570,7 +570,12 @@ let show_hfs : (Lang.hole_name * Lang.exp) list list -> string =
 
 let solve : sketch:string -> (string, string) result =
   fun ~sketch ->
-    match Endpoint.solve ~sketch with
+    match Endpoint.parse_program sketch with
+    | Error e ->
+      Error (Show.error e)
+
+    | Ok program ->
+      match Endpoint.solve_program program with
       | Error e ->
           Error (Show.error e)
 
@@ -590,7 +595,7 @@ let solve : sketch:string -> (string, string) result =
                 end
 
             | ShowTop1R ->
-                begin match Rank.first_recursive ranked_hole_fillings with
+                begin match Rank.first_recursive (Desugar.program program |> fst) ranked_hole_fillings with
                   | Some top_r ->
                       let prefix =
                         begin match !output_mode with

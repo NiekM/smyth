@@ -12,8 +12,7 @@ let annotate_rec_name : string -> exp -> exp =
 let lett : typ -> string -> exp -> exp -> exp =
   fun the_typ name binding body ->
     EApp
-      ( false
-      , EFix (None, PatParam (PVar name), body)
+      ( EFix (None, PatParam (PVar name), body)
       , EAExp
           ( ETypeAnnotation
               ( annotate_rec_name name binding
@@ -31,7 +30,7 @@ let func_params : param list -> exp -> exp =
 let app : exp -> exp_arg list -> exp =
   List.fold_left
     ( fun acc arg ->
-        EApp (false, acc, arg)
+        EApp (acc, arg)
     )
 
 (* Precondition: input >= 0 *)

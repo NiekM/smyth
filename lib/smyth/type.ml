@@ -81,7 +81,7 @@ let applications : exp -> typ -> (exp * typ list * typ) list =
       match typ with
       | TArr (tau1, tau2) ->
         helper (hole + 1)
-          (EApp (false, exp, EAExp (EHole hole)))
+          (EApp (exp, EAExp (EHole hole)))
           tau2
           |> List.map
             @@ fun (e, ts, t) -> e, tau1 :: ts, t
@@ -122,7 +122,7 @@ let rec bind_spec gamma exp =
           |> Option2.map fst
           |> Option2.with_default NoSpec
 
-    | EApp (_, head, EAType _) ->
+    | EApp (head, EAType _) ->
         bind_spec gamma head
 
     | _ ->
@@ -526,7 +526,7 @@ let rec check' :
             ]
 
       (* Nonstandard, but useful for let-bindings *)
-      | EApp (_, head, EAExp (ETypeAnnotation (arg, arg_type))) ->
+      | EApp (head, EAExp (ETypeAnnotation (arg, arg_type))) ->
           let* arg_delta =
             check' state sigma gamma arg arg_type
           in
@@ -535,7 +535,7 @@ let rec check' :
           in
           head_delta @ arg_delta
 
-      | EApp (_, _, _)
+      | EApp (_, _)
       | EVar _
       | EProj (_, _, _)
       | ECtor (_, _, _)
@@ -567,7 +567,7 @@ and infer' :
             , CannotInferFunctionType
             )
 
-      | EApp (_, head, (EAExp arg)) ->
+      | EApp (head, (EAExp arg)) ->
           let* (head_type, head_delta) =
             infer' state sigma gamma head
           in
@@ -585,7 +585,7 @@ and infer' :
                   )
           end
 
-      | EApp (_, head, (EAType type_arg)) ->
+      | EApp (head, (EAType type_arg)) ->
           let* (head_type, head_delta) =
             infer' state sigma gamma head
           in
