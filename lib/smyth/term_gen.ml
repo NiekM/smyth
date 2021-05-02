@@ -350,15 +350,15 @@ and rel_gen_e
         in
         let* _ =
           (* Recursive calls should have arguments and the first one should be structurally decreasing *)
-          Nondet.guard
-            @@ if List.length args = 0
+          Nondet.guard @@
+            if List.length args = 0
               then
                 match Type.bind_spec combined_gamma head with | Rec _ -> false | _ -> true
               else
                 Type.structurally_decreasing combined_gamma ~head ~arg:(List.hd args)
         in
-          Nondet.pure
-            @@ Exp.fill_holes
+          Nondet.pure @@
+            Exp.fill_holes
               (List.fold_left (fun m (k, x) -> Hole_map.add k x m)
               Hole_map.empty
               (List.mapi Pair2.pair args))
@@ -402,8 +402,8 @@ and rel_gen_e
       let* (exp, taus) =
         combined_gamma (* NOTE: should this just be gamma? *)
           |> Type_ctx.all_type
-          |> List.map
-            @@ instantiations (simple_types sigma combined_gamma) goal_type
+          |> List.map @@
+            instantiations (simple_types sigma combined_gamma) goal_type
           |> Nondet.union
       in
       let arg_size =

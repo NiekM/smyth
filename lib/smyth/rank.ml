@@ -63,6 +63,5 @@ let first_recursive :
     let rec_binds =
       Exp.get_hole_rec_binds exp
     in
-    hfs |> List.find_opt
-      @@ List.exists
-        @@ fun (i, e) -> Exp.recursive (List.assoc i rec_binds) e
+    hfs |> List.find_opt @@ List.exists @@
+      fun (i, e) -> Exp.recursive (List.assoc i rec_binds) e

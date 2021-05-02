@@ -761,8 +761,8 @@ let () =
                             List.init !suite_test_n
                               ( fun _ ->
                                 let prelude =
-                                  try Io2.read_path
-                                    @@ [suite_path; "preludes"; simple]
+                                  try Io2.read_path @@
+                                    [suite_path; "preludes"; simple]
                                   with _ -> ""
                                 in
                                 Endpoint.test

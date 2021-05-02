@@ -83,8 +83,8 @@ let applications : exp -> typ -> (exp * typ list * typ) list =
         helper (hole + 1)
           (EApp (exp, EAExp (EHole hole)))
           tau2
-          |> List.map
-            @@ fun (e, ts, t) -> e, tau1 :: ts, t
+          |> List.map @@
+            fun (e, ts, t) -> e, tau1 :: ts, t
       | TTuple taus ->
         let n =
           List.length taus
