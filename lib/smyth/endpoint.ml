@@ -46,9 +46,6 @@ let rec eta_expand (gamma : type_ctx) (tau : typ) : exp =
 
 let eta_expand_all delta =
   delta
-    (* NOTE: apparently, the order of the hole_ctx matters
-      , reversing it ensures the same results as before *)
-    |> List.rev
     |> List.filter_map (fun (i, (gamma, tau, _, _)) ->
       match tau with
       | TArr _ -> Some (i, eta_expand gamma tau)

@@ -121,7 +121,6 @@ let rec largest_hole : exp -> hole_name =
           in
           max (largest_hole scrutinee) branch_max
 
-(* TODO: fill_holes should probably subsume fill_hole *)
 (* TODO: probably should first clean/propagate hf before calling fill_holes *)
 let fill_holes (hf : hole_filling) : exp -> exp =
   let rec helper : exp -> exp =

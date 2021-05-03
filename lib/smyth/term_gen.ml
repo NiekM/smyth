@@ -400,7 +400,7 @@ and rel_gen_e
     in
     let rel_arg_nd =
       let* (exp, taus) =
-        combined_gamma (* NOTE: should this just be gamma? *)
+        combined_gamma
           |> Type_ctx.all_type
           |> List.map @@
             instantiations (simple_types sigma combined_gamma) goal_type
