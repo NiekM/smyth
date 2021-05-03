@@ -16,6 +16,9 @@ val fresh_ident : string list -> char -> string
 (** [fresh_ident idents c] returns an identifier starting with the character [c]
     that does not appear in [idents] *)
 
+val type_char : char
+(** The canonical first character for type variable names. *)
+
 val function_char : char
 (** The canonical first character for function names. *)
 

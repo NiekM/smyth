@@ -35,6 +35,9 @@ let rec fresh_idents n idents first_char =
     in
       ident :: fresh_idents (n - 1) (ident :: idents) first_char
 
+let type_char =
+  'a'
+
 let function_char =
   'f'
 
@@ -359,9 +362,10 @@ and rel_gen_e
         in
           Nondet.pure @@
             Exp.fill_holes
-              (List.fold_left (fun m (k, x) -> Hole_map.add k x m)
-              Hole_map.empty
-              (List.mapi Pair2.pair args))
+              ( List.fold_left (fun m (k, x) -> Hole_map.add k x m)
+                Hole_map.empty
+                (List.mapi Pair2.pair args)
+              )
               exp
     in
     let rel_head_nd =

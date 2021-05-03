@@ -26,38 +26,6 @@ let rec equal tau1 tau2 =
     | _ ->
         false
 
-let wildcard =
-  TVar "*"
-
-let rec matches tau1 tau2 =
-  if equal tau1 wildcard then
-    true
-  else if equal tau2 wildcard then
-    true
-  else
-    match (tau1, tau2) with
-      | (TArr (tau11, tau12), TArr (tau21, tau22)) ->
-          matches tau11 tau21 && matches tau12 tau22
-
-      | (TTuple taus1, TTuple taus2) ->
-          List.length taus1 = List.length taus2
-            && List.for_all2 matches taus1 taus2
-
-      | (TData (d1, params1), TData (d2, params2)) ->
-          String.equal d1 d2
-            && List.length params1 = List.length params2
-            && List.for_all2 matches params1 params2
-
-      | (TForall (a1, bound_type1), TForall (a2, bound_type2)) ->
-          String.equal a1 a2
-            && matches bound_type1 bound_type2
-
-      | (TVar x1, TVar x2) ->
-          String.equal x1 x2
-
-      | _ ->
-          false
-
 let is_base tau =
   match tau with
     | TArr _ ->
@@ -100,7 +68,7 @@ let rec free_vars : typ -> string list =
   | TArr (tau1, tau2) -> free_vars tau1 @ free_vars tau2
   | TTuple taus
   | TData (_, taus) -> List.concat @@ List.map free_vars taus
-  | TForall (_, tau) -> free_vars tau
+  | TForall (a, tau) -> List.filter (fun b -> a <> b) @@ free_vars tau
   | TVar a -> [a]
 
 let sub_bind_spec bind_spec =

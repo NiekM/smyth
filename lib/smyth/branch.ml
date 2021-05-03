@@ -112,7 +112,7 @@ let branch
       , TData
           ( data_name
           , List.map
-              (fun _ -> Type.wildcard)
+              (fun _ -> TVar "*")
               datatype_params
           )
       , None

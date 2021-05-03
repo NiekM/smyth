@@ -8,13 +8,6 @@ val equal : typ -> typ -> bool
 (** [equal tau1 tau2] determines if [tau1] and [tau2] have the same
     abstract syntax tree. *)
 
-val wildcard : typ
-(** The "wildcard" type. *)
-
-val matches : typ -> typ -> bool
-(** [matches tau1 tau2] determines if [tau1] and [tau2] have the same
-    abstract syntax tree modulo any wildcards. *)
-
 val is_base : typ -> bool
 (** [is_base tau] returns determines if [tau] is a base type. *)
 
