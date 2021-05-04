@@ -101,44 +101,38 @@ let simple_types : datatype_ctx -> type_ctx -> typ Nondet.t =
       ; datatypes_nd
       ]
 
-(** [goal_match goal_type binding] finds all forall- and argument-peeled instantiations
-    of [binding] matching [goal_type] *)
-let goal_match : typ -> string list -> type_binding -> (exp * string list * typ list * typ) Nondet.t =
-  fun goal_type free_vars (name, (tau, _)) ->
-    (* Peel forall *)
-    let params, bound_type =
-      Type.peel_forall tau
-    in
-    (* Generate fresh identifiers *)
-    let fresh_vars =
-      fresh_idents (List.length params) (Type.free_vars tau) 'a'
-    in
-    (* Instantiate type with fresh identifiers *)
-    let fresh_tau =
-      Type.subst (List.combine params @@ List.map (fun x -> TVar x) fresh_vars) bound_type
-    in
-    let exp =
-      Desugar.app
-        (EVar name)
-        (List.map (fun x -> EAType (TVar x)) fresh_vars)
-    in
-    let* exp, args, ret =
-      Type.applications exp fresh_tau |> Nondet.from_list
-    in
-      match Type.unify (free_vars @ fresh_vars) ret goal_type with
-      | Error _ -> Nondet.none
-      | Ok th ->
-        Nondet.pure
-          ( Exp.subst th exp
-          , List.filter (fun x -> not (List.mem_assoc x th)) fresh_vars
-          , List.map (Type.subst th) args
-          , Type.subst th ret
-          )
-
 let instantiations : typ Nondet.t -> typ -> string list -> type_binding -> (exp * typ list) Nondet.t =
-  fun types goal_type free_vars binding ->
+  fun types goal_type free_vars (name, (tau, _)) ->
     let* exp, params, args, _ =
-      goal_match goal_type free_vars binding
+      (* Peel forall *)
+      let params, bound_type =
+        Type.peel_forall tau
+      in
+      (* Generate fresh identifiers *)
+      let fresh_vars =
+        fresh_idents (List.length params) (Type.free_vars tau) 'a'
+      in
+      (* Instantiate type with fresh identifiers *)
+      let fresh_tau =
+        Type.subst (List.combine params @@ List.map (fun x -> TVar x) fresh_vars) bound_type
+      in
+      let exp =
+        Desugar.app
+          (EVar name)
+          (List.map (fun x -> EAType (TVar x)) fresh_vars)
+      in
+      let* exp, args, ret =
+        Type.applications exp fresh_tau |> Nondet.from_list
+      in
+        match Type.unify (free_vars @ fresh_vars) ret goal_type with
+        | Error _ -> Nondet.none
+        | Ok th ->
+          Nondet.pure
+            ( Exp.subst th exp
+            , List.filter (fun x -> not (List.mem_assoc x th)) fresh_vars
+            , List.map (Type.subst th) args
+            , Type.subst th ret
+            )
     in
       params
         |> List.map (fun _ -> types)
