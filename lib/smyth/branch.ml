@@ -82,7 +82,7 @@ let distribute
           Nondet.none
 
 let branch
- max_scrutinee_size delta sigma hf ({gamma; goal_dec} as goal, worlds) =
+ max_scrutinee_size delta sigma hf ({gamma; free_vars; goal_dec} as goal, worlds) =
   let open Nondet.Syntax in
   let* _ =
     Nondet.guard (Option.is_none goal_dec)
@@ -105,16 +105,17 @@ let branch
       |> List.map (Pair2.map_snd @@ fun typ -> (arg_name, typ))
       |> Ctor_map.from_assoc
   in
+  let fresh_vars =
+    Term_gen.fresh_idents (List.length datatype_params) free_vars Term_gen.type_char
+  in
   let* scrutinee =
-    (* TODO: generate fresh vars here and set them as free in Term_gen *)
     Term_gen.up_to E sigma max_scrutinee_size
       { goal with goal_type =
         TData
           ( data_name
-          , List.map
-              (fun _ -> TVar "*")
-              datatype_params
+          , fresh_vars |> List.map @@ fun a -> TVar a
           )
+      ; free_vars = free_vars @ fresh_vars
       }
   in
   let* datatype_args =

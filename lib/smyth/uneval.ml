@@ -71,7 +71,13 @@ module FuelLimited = struct
         in
           Nondet.map
             (Hole_map.singleton hole_name)
-            (Term_gen.up_to E sigma 1 {gamma; goal_type; free_vars = []; goal_dec})
+            ( Term_gen.up_to E sigma 1
+              { gamma
+              ; goal_type
+              ; free_vars = []
+              ; goal_dec
+              }
+            )
     in
     let* _ =
       Nondet.guard (fuel > 0)

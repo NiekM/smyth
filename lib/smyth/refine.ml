@@ -3,7 +3,7 @@ open Lang
 let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
-let refine _delta sigma ({gamma; goal_type; goal_dec; _}, worlds) =
+let refine _delta sigma ({gamma; goal_type; free_vars; goal_dec}, worlds) =
   let open Option2.Syntax in
   let* _ =
     Option2.guard (Option.is_none goal_dec)
@@ -70,7 +70,7 @@ let refine _delta sigma ({gamma; goal_type; goal_dec; _}, worlds) =
                     ]
                     gamma
                 ; goal_type = tau2
-                ; free_vars = [] (* TODO: *)
+                ; free_vars
                 ; goal_dec = None
                 }
               , refined_worlds
@@ -112,7 +112,7 @@ let refine _delta sigma ({gamma; goal_type; goal_dec; _}, worlds) =
                       ( Fresh.gen_hole ()
                       , ( { gamma
                           ; goal_type
-                          ; free_vars = [] (* TODO: *)
+                          ; free_vars
                           ; goal_dec = None
                           }
                         , refined_worlds
@@ -172,7 +172,7 @@ let refine _delta sigma ({gamma; goal_type; goal_dec; _}, worlds) =
             ( hole_name
             , ( { gamma
                 ; goal_type = arg_type
-                ; free_vars = [] (* TODO: *)
+                ; free_vars
                 ; goal_dec = None
                 }
               , refined_worlds

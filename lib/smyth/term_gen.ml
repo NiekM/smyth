@@ -103,8 +103,8 @@ let simple_types : datatype_ctx -> type_ctx -> typ Nondet.t =
 
 (** [goal_match goal_type binding] finds all forall- and argument-peeled instantiations
     of [binding] matching [goal_type] *)
-let goal_match : typ -> type_binding -> (exp * string list * typ list * typ) Nondet.t =
-  fun goal_type (name, (tau, _)) ->
+let goal_match : typ -> string list -> type_binding -> (exp * string list * typ list * typ) Nondet.t =
+  fun goal_type free_vars (name, (tau, _)) ->
     (* Peel forall *)
     let params, bound_type =
       Type.peel_forall tau
@@ -125,8 +125,7 @@ let goal_match : typ -> type_binding -> (exp * string list * typ list * typ) Non
     let* exp, args, ret =
       Type.applications exp fresh_tau |> Nondet.from_list
     in
-      (* TODO: should fresh_vars contain "*", or should it only be added for unification? *)
-      match Type.unify ("*" :: fresh_vars) ret goal_type with
+      match Type.unify (free_vars @ fresh_vars) ret goal_type with
       | Error _ -> Nondet.none
       | Ok th ->
         Nondet.pure
@@ -136,10 +135,10 @@ let goal_match : typ -> type_binding -> (exp * string list * typ list * typ) Non
           , Type.subst th ret
           )
 
-let instantiations : typ Nondet.t -> typ -> type_binding -> (exp * typ list) Nondet.t =
-  fun types goal_type binding ->
+let instantiations : typ Nondet.t -> typ -> string list -> type_binding -> (exp * typ list) Nondet.t =
+  fun types goal_type free_vars binding ->
     let* exp, params, args, _ =
-      goal_match goal_type binding
+      goal_match goal_type free_vars binding
     in
       params
         |> List.map (fun _ -> types)
@@ -340,7 +339,7 @@ and rel_gen_e
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)
-  ({gamma; goal_type} : gen_goal)
+  ({gamma; goal_type; free_vars} : gen_goal)
   : exp Nondet.t =
     let combined_gamma =
       Type_ctx.add_type rel_binding gamma
@@ -370,7 +369,7 @@ and rel_gen_e
     in
     let rel_head_nd =
       let* (exp, taus) =
-        instantiations (simple_types sigma combined_gamma) goal_type rel_binding
+        instantiations (simple_types sigma combined_gamma) goal_type free_vars rel_binding
       in
       let arg_size =
         List.length taus
@@ -408,7 +407,7 @@ and rel_gen_e
         combined_gamma
           |> Type_ctx.all_type
           |> List.map @@
-            instantiations (simple_types sigma combined_gamma) goal_type
+            instantiations (simple_types sigma combined_gamma) goal_type free_vars
           |> Nondet.union
       in
       let arg_size =
@@ -502,7 +501,7 @@ and rel_gen_i
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding option)
-  ({gamma; goal_type; goal_dec} as goal : gen_goal)
+  ({gamma; goal_type; free_vars; goal_dec} as goal : gen_goal)
   : exp Nondet.t = 
     let* _ =
       Nondet.guard (Option.is_none goal_dec)
@@ -542,7 +541,7 @@ and rel_gen_i
                         ]
                         gamma
                     ; goal_type = tau2
-                    ; free_vars = [] (* TODO:  *)
+                    ; free_vars
                     ; goal_dec = None
                     }
                 }
@@ -574,7 +573,7 @@ and rel_gen_i
                             ; goal =
                               { gamma
                               ; goal_type
-                              ; free_vars = [] (* TODO: *)
+                              ; free_vars
                               ; goal_dec = None
                               }
                             }
@@ -592,7 +591,7 @@ and rel_gen_i
                             genp_i sigma n tp rb
                               { gamma
                               ; goal_type
-                              ; free_vars = [] (* TODO: *)
+                              ; free_vars
                               ; goal_dec = None
                               }
                           end
@@ -616,7 +615,7 @@ and rel_gen_i
                 ; goal =
                   { gamma
                   ; goal_type = arg_type
-                  ; free_vars = [] (* TODO: *)
+                  ; free_vars
                   ; goal_dec = None
                   }
                 }
@@ -633,7 +632,7 @@ and rel_gen_i
                 ; goal =
                     { gamma = Type_ctx.add_poly a gamma
                     ; goal_type = bound_type
-                    ; free_vars = [] (* TODO: *)
+                    ; free_vars
                     ; goal_dec = None
                     }
                 }
