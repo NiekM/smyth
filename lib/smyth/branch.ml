@@ -82,7 +82,7 @@ let distribute
           Nondet.none
 
 let branch
- max_scrutinee_size delta sigma hf ((gamma, goal_type, goal_dec), worlds) =
+ max_scrutinee_size delta sigma hf ({gamma; goal_dec} as goal, worlds) =
   let open Nondet.Syntax in
   let* _ =
     Nondet.guard (Option.is_none goal_dec)
@@ -108,15 +108,14 @@ let branch
   let* scrutinee =
     (* TODO: generate fresh vars here and set them as free in Term_gen *)
     Term_gen.up_to E sigma max_scrutinee_size
-      ( gamma
-      , TData
+      { goal with goal_type =
+        TData
           ( data_name
           , List.map
               (fun _ -> TVar "*")
               datatype_params
           )
-      , None
-      )
+      }
   in
   let* datatype_args =
     Type.infer sigma gamma scrutinee
@@ -197,12 +196,11 @@ let branch
             in
             let goal =
               ( hole_name
-              , ( ( Type_ctx.add_type
+              , ( { goal with gamma =
+                    Type_ctx.add_type
                       (arg_name, (arg_type, (arg_bind_spec, May)))
                       gamma
-                  , goal_type
-                  , None
-                  )
+                  }
                 , distributed_worlds
                 )
               )

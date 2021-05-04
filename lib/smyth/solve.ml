@@ -67,7 +67,7 @@ let rec iter_solve params delta sigma (hf, us_all) =
         Nondet.pure (hf, delta)
 
     | Some ((hole_name, worlds), us) ->
-        let* (gamma, typ, dec, match_depth) =
+        let* (gamma, goal_type, goal_dec, match_depth) =
           Nondet.lift_option @@
             List.assoc_opt hole_name delta
         in
@@ -79,7 +79,15 @@ let rec iter_solve params delta sigma (hf, us_all) =
             delta
             sigma
             hf
-            (hole_name, ((gamma, typ, dec), worlds))
+            ( hole_name
+            , ( { gamma
+                ; goal_type
+                ; free_vars = [] (* TODO: *)
+                ; goal_dec
+                }
+              , worlds
+              )
+            )
         in
         let delta_merged =
           delta_new @ delta

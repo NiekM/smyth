@@ -182,7 +182,7 @@ type gen_input =
 (* TODO: maybe move hashing to its own file? *)
 (* Hashing *)
 
-let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
+let hash ({ term_kind; term_size; rel_binding; goal = {gamma; goal_type; goal_dec}} : gen_input) : string =
   let rec hash_type (tau : typ) : string =
     match tau with
       | TArr (tau1, tau2) ->
@@ -233,9 +233,9 @@ let hash ({ term_kind; term_size; rel_binding; goal } : gen_input) : string =
           name ^ ";" ^ hash_type tau ^ ";" ^ hash_bind_spec bind_spec ^ hash_rel rel
   in
   let goal_string =
-    let (gamma, goal_type, goal_dec) =
+    (* let (gamma, goal_type, _, goal_dec) =
       goal
-    in
+    in *)
     (* Sigma never changes, so no need to keep track of it in the cache *)
     let gamma_type_string =
       gamma
@@ -305,7 +305,7 @@ let rec get_head : exp -> exp =
 let rec gen_e
   (sigma : datatype_ctx)
   (term_size : int)
-  ((gamma, goal_type, goal_dec) : gen_goal)
+  ({gamma} as goal : gen_goal)
   : exp Nondet.t =
     match Type_ctx.peel_type gamma with
       | Some (binding, gamma_rest) ->
@@ -315,14 +315,14 @@ let rec gen_e
                 ; term_kind = E
                 ; term_size
                 ; rel_binding = Some binding
-                ; goal = (gamma_rest, goal_type, goal_dec)
+                ; goal = {goal with gamma = gamma_rest}
                 }
             ; gen
                 { sigma
                 ; term_kind = E
                 ; term_size
                 ; rel_binding = None
-                ; goal = (gamma_rest, goal_type, goal_dec)
+                ; goal = {goal with gamma = gamma_rest}
                 }
             ]
 
@@ -340,7 +340,7 @@ and rel_gen_e
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding)
-  ((gamma, goal_type, _goal_dec) : gen_goal)
+  ({gamma; goal_type} : gen_goal)
   : exp Nondet.t =
     let combined_gamma =
       Type_ctx.add_type rel_binding gamma
@@ -386,17 +386,18 @@ and rel_gen_e
         Nondet.join @@ Nondet.map (app_combine exp) @@
           Nondet.one_of_each @@
             List.map2
-              begin fun tau n ->
+              begin fun goal_type n ->
                 gen
                   { sigma
                   ; term_kind = I
                   ; term_size = n
                   ; rel_binding = None
                   ; goal =
-                    ( combined_gamma
-                    , tau
-                    , None
-                    )
+                    { gamma = combined_gamma
+                    ; goal_type
+                    ; free_vars = [] (* TODO: pass free variables & perform in sequence *)
+                    ; goal_dec = None
+                    }
                   }
               end
               taus
@@ -425,8 +426,13 @@ and rel_gen_e
         Nondet.join @@ Nondet.map (app_combine exp) @@
           Nondet.one_of_each @@
             List2.map3
-              begin fun tau n tp ->
-                genp_i sigma n tp rel_binding (gamma, tau, None)
+              begin fun goal_type n tp ->
+                genp_i sigma n tp rel_binding
+                  { gamma
+                  ; goal_type
+                  ; free_vars = [] (* TODO: *)
+                  ; goal_dec = None
+                  }
               end
               taus
               partition
@@ -442,7 +448,7 @@ and genp_i
   (term_size : int)
   (rel : relevance)
   (rel_binding : type_binding)
-  ((gamma, goal_type, goal_dec) : gen_goal)
+  ({gamma} as goal : gen_goal)
   : exp Nondet.t =
     let (rel_binding', gamma') =
       match rel with
@@ -460,13 +466,13 @@ and genp_i
         ; term_kind = I
         ; term_size
         ; rel_binding = rel_binding'
-        ; goal = (gamma', goal_type, goal_dec)
+        ; goal = {goal with gamma = gamma'}
         }
 
 and gen_i
   (sigma : datatype_ctx)
   (term_size : int)
-  ((gamma, goal_type, goal_dec) as goal : gen_goal)
+  ({gamma; goal_dec} as goal : gen_goal)
   : exp Nondet.t =
     let* _ =
       Nondet.guard (Option.is_none goal_dec)
@@ -479,14 +485,14 @@ and gen_i
                   ; term_kind = I
                   ; term_size
                   ; rel_binding = Some binding
-                  ; goal = (gamma_rest, goal_type, goal_dec)
+                  ; goal = {goal with gamma = gamma_rest}
                   }
               ; gen
                   { sigma
                   ; term_kind = I
                   ; term_size
                   ; rel_binding = None
-                  ; goal = (gamma_rest, goal_type, goal_dec)
+                  ; goal = {goal with gamma = gamma_rest}
                   }
               ]
 
@@ -496,7 +502,7 @@ and rel_gen_i
   (sigma : datatype_ctx)
   (term_size : int)
   (rel_binding : type_binding option)
-  ((gamma, goal_type, goal_dec) as goal : gen_goal)
+  ({gamma; goal_type; goal_dec} as goal : gen_goal)
   : exp Nondet.t = 
     let* _ =
       Nondet.guard (Option.is_none goal_dec)
@@ -530,14 +536,15 @@ and rel_gen_i
                 ; term_size = term_size - 1 (* -1 for lambda *)
                 ; rel_binding = rel_binding
                 ; goal =
-                    ( Type_ctx.concat_type
+                    { gamma = Type_ctx.concat_type
                         [ (arg_name, (tau1, (Arg f_name, May)))
                         ; (f_name, (goal_type, (Rec f_name, May)))
                         ]
                         gamma
-                    , tau2
-                    , None
-                    )
+                    ; goal_type = tau2
+                    ; free_vars = [] (* TODO:  *)
+                    ; goal_dec = None
+                    }
                 }
             in
               EFix (Some f_name, PatParam (PVar arg_name), body)
@@ -558,13 +565,18 @@ and rel_gen_i
                   Nondet.map (fun es -> ETuple es) @@
                     Nondet.one_of_each @@
                       List.map2
-                        begin fun tau n ->
+                        begin fun goal_type n ->
                           gen
                             { sigma
                             ; term_kind = I
                             ; term_size = n
                             ; rel_binding = None
-                            ; goal = (gamma, tau, None)
+                            ; goal =
+                              { gamma
+                              ; goal_type
+                              ; free_vars = [] (* TODO: *)
+                              ; goal_dec = None
+                              }
                             }
                         end
                         taus
@@ -576,8 +588,13 @@ and rel_gen_i
                     Nondet.map (fun es -> ETuple es) @@
                       Nondet.one_of_each @@
                         List2.map3
-                          begin fun tau n tp ->
-                            genp_i sigma n tp rb (gamma, tau, None)
+                          begin fun goal_type n tp ->
+                            genp_i sigma n tp rb
+                              { gamma
+                              ; goal_type
+                              ; free_vars = [] (* TODO: *)
+                              ; goal_dec = None
+                              }
                           end
                           taus
                           partition
@@ -596,7 +613,12 @@ and rel_gen_i
                 ; term_kind = I
                 ; term_size = term_size - 1 (* -1 for constructor *)
                 ; rel_binding = rel_binding
-                ; goal = (gamma, arg_type, None)
+                ; goal =
+                  { gamma
+                  ; goal_type = arg_type
+                  ; free_vars = [] (* TODO: *)
+                  ; goal_dec = None
+                  }
                 }
             in
               ECtor (ctor_name, datatype_args, arg)
@@ -609,12 +631,11 @@ and rel_gen_i
                 ; term_size = term_size - 1 (* -1 for lambda *)
                 ; rel_binding = rel_binding
                 ; goal =
-                    ( Type_ctx.add_poly
-                        a
-                        gamma
-                    , bound_type
-                    , None
-                    )
+                    { gamma = Type_ctx.add_poly a gamma
+                    ; goal_type = bound_type
+                    ; free_vars = [] (* TODO: *)
+                    ; goal_dec = None
+                    }
                 }
             in
               EFix (None, TypeParam a, body)

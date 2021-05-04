@@ -33,7 +33,7 @@ let refine_or_branch
   in
   let delta' =
     List.map
-      ( Pair2.map_snd @@ fun ((gamma, goal_type, goal_dec), _) ->
+      ( Pair2.map_snd @@ fun ({gamma; goal_type; goal_dec}, _) ->
           (gamma, goal_type, goal_dec, match_depth)
       )
       subgoals
@@ -61,14 +61,14 @@ let refine_or_branch
     )
 
 let guess_and_check
- params delta sigma hf (hole_name, ((_, goal_type, _) as gen_goal, worlds)) =
+ params delta sigma hf (hole_name, (gen_goal, worlds)) =
   (* Only guess if we have not exhausted all time allotted for guessing *)
   let* _ =
     Nondet.guard (Timer.Multi.check Timer.Multi.Guess);
   in
   (* Only guess at base types *)
   let* _ =
-    Nondet.guard (Type.is_base goal_type)
+    Nondet.guard (Type.is_base gen_goal.goal_type)
   in
   let* exp =
     Timer.Multi.accumulate Timer.Multi.Guess @@ fun () ->
@@ -96,7 +96,7 @@ let guess_and_check
     )
 
 let defer
- _params _delta _sigma _hf (hole_name, ((_, goal_type, _), worlds)) =
+ _params _delta _sigma _hf (hole_name, ({goal_type}, worlds)) =
   if
     not (Type.equal goal_type (TTuple []))
       && List.length worlds > 0

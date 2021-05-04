@@ -3,7 +3,7 @@ open Lang
 let filter (ws : worlds) : worlds =
   List.filter (fun (_env, ex) -> ex <> ExTop) ws
 
-let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
+let refine _delta sigma ({gamma; goal_type; goal_dec; _}, worlds) =
   let open Option2.Syntax in
   let* _ =
     Option2.guard (Option.is_none goal_dec)
@@ -63,14 +63,16 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
           in
           let new_goal =
             ( hole_name
-            , ( ( Type_ctx.concat_type
+            , ( { gamma =
+                  Type_ctx.concat_type
                     [ (f_name, (TArr (tau1, tau2), (Rec f_name, May)))
                     ; (x_name, (tau1, (Arg f_name, May)))
                     ]
                     gamma
-                , tau2
-                , None
-                )
+                ; goal_type = tau2
+                ; free_vars = [] (* TODO: *)
+                ; goal_dec = None
+                }
               , refined_worlds
               )
             )
@@ -106,9 +108,15 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
             else
               let new_goals =
                 List.map2
-                  ( fun tau refined_worlds ->
+                  ( fun goal_type refined_worlds ->
                       ( Fresh.gen_hole ()
-                      , ((gamma, tau, None), refined_worlds)
+                      , ( { gamma
+                          ; goal_type
+                          ; free_vars = [] (* TODO: *)
+                          ; goal_dec = None
+                          }
+                        , refined_worlds
+                        )
                       )
                   )
                   taus
@@ -162,7 +170,13 @@ let refine _delta sigma ((gamma, goal_type, goal_dec), worlds) =
           in
           let new_goal =
             ( hole_name
-            , ((gamma, arg_type, None), refined_worlds)
+            , ( { gamma
+                ; goal_type = arg_type
+                ; free_vars = [] (* TODO: *)
+                ; goal_dec = None
+                }
+              , refined_worlds
+              )
             )
           in
           let exp =

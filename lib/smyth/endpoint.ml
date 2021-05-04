@@ -313,7 +313,15 @@ let gen_assertions_program ~prog ~model ~size : (exp * exp) Nondet.t =
   | Ok (res, []) ->
     let* inputs =
       Nondet.one_of_each @@ List.map
-        (fun t -> Term_gen.up_to I sigma size (Type_ctx.empty, t, None)) types
+        ( fun goal_type ->
+          Term_gen.up_to I sigma size
+            { gamma = Type_ctx.empty
+            ; goal_type
+            ; free_vars = []
+            ; goal_dec = None
+            }
+        )
+        types
     in
     let hf =
       List.fold_right (fun (i, x) acc -> Hole_map.add i x acc) 

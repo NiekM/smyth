@@ -65,13 +65,13 @@ module FuelLimited = struct
           Nondet.lift_option @@
             blocking_hole res
         in
-        let* (gamma, tau, dec, _) =
+        let* (gamma, goal_type, goal_dec, _) =
           Nondet.lift_option @@
             List.assoc_opt hole_name delta
         in
           Nondet.map
             (Hole_map.singleton hole_name)
-            (Term_gen.up_to E sigma 1 (gamma, tau, dec))
+            (Term_gen.up_to E sigma 1 {gamma; goal_type; free_vars = []; goal_dec})
     in
     let* _ =
       Nondet.guard (fuel > 0)

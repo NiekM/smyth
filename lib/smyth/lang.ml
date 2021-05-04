@@ -183,7 +183,11 @@ type resumption_assertions =
 
 (** Term generation ("guessing") goals. *)
 type gen_goal =
-  type_ctx * typ * string option
+  { gamma : type_ctx
+  ; goal_type : typ
+  ; free_vars : string list
+  ; goal_dec : string option
+  }
 
 (** Basic synthesis goals. *)
 type synthesis_goal =
