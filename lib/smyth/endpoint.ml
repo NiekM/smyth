@@ -294,7 +294,7 @@ let rec args : typ -> typ list * typ =
   | TArr (tau1, tau2) -> Pair2.map_fst (fun ts -> tau1 :: ts) (args tau2) 
   | tau -> [] , tau
 
-let gen_assertions_program ~prog ~model ~size : (exp * exp) Nondet.t =
+let gen_assertions ~prog ~model ~size : (exp * exp) Nondet.t =
   let open Desugar in
   let open Nondet.Syntax in
   let* typ, _ =
@@ -338,13 +338,6 @@ let gen_assertions_program ~prog ~model ~size : (exp * exp) Nondet.t =
     end
   | _ -> Nondet.none 
   end 
-
-let gen_assertions ~prog ~model ~size : (exp * exp) list response =
-  let open Result2.Syntax in
-  let* prog =
-    parse_program prog
-  in
-    Ok (gen_assertions_program ~prog ~model ~size |> Nondet.to_list)
 
 (* Assertion Info *)
 

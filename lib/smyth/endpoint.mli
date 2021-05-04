@@ -84,18 +84,12 @@ val test_specification :
 (** A convenience wrapper for {!test} that takes in lists of parsed assertions
     rather than strings. *)
 
-val gen_assertions_program :
+val gen_assertions :
   prog:Desugar.program -> 
   model:string ->
   size:int ->
   (Lang.exp * Lang.exp) Nondet.t
 
-val gen_assertions :
-  prog:string -> 
-  model:string ->
-  size:int ->
-  (Lang.exp * Lang.exp) list response
-    
 (** {1:assertion Assertion Info} *)
 
 val assertion_info :

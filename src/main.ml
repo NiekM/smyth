@@ -827,8 +827,11 @@ let () =
               Io2.read_path ["exercises" ; set ; exercise ; "model.elm"]
             in
             let input_outputs =
-              Endpoint.gen_assertions ~prog:(prelude ^ model) ~model:exercise ~size:20
-                |> Result2.with_default [] (* TODO: some error probably? *)
+              ( Endpoint.parse_program (prelude ^ model)
+                |> Result2.and_then @@
+                  fun prog ->
+                    Ok (Endpoint.gen_assertions ~prog:prog ~model:exercise ~size:20 |> Nondet.to_list)
+              ) |> Result2.with_default []
             in
             let rec drop n xs =
               match xs with
